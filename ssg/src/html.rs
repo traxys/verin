@@ -20,12 +20,17 @@
 
 //! HTML renderer that takes an iterator of events as input.
 
-use std::collections::HashMap;
-use std::io::{self, Write};
+use std::{
+    collections::HashMap,
+    io::{self, Write},
+};
 
-use pulldown_cmark::escape::{escape_href, escape_html, StrWrite, WriteWrapper};
-use pulldown_cmark::Event::*;
-use pulldown_cmark::{Alignment, CodeBlockKind, CowStr, Event, LinkType, Tag};
+use pulldown_cmark::{
+    escape::{escape_href, escape_html, StrWrite, WriteWrapper},
+    Alignment, CodeBlockKind, CowStr,
+    Event::{self, *},
+    LinkType, Tag,
+};
 
 enum TableState {
     Head,
@@ -399,40 +404,6 @@ where
         }
         Ok(())
     }
-}
-
-/// Iterate over an `Iterator` of `Event`s, generate HTML for each `Event`, and
-/// push it to a `String`.
-///
-/// # Examples
-///
-/// ```
-/// use pulldown_cmark::{html, Parser};
-///
-/// let markdown_str = r#"
-/// hello
-/// =====
-///
-/// * alpha
-/// * beta
-/// "#;
-/// let parser = Parser::new(markdown_str);
-///
-/// let mut html_buf = String::new();
-/// html::push_html(&mut html_buf, parser);
-///
-/// assert_eq!(html_buf, r#"<h1>hello</h1>
-/// <ul>
-/// <li>alpha</li>
-/// <li>beta</li>
-/// </ul>
-/// "#);
-/// ```
-pub fn push_html<'a, I>(s: &mut String, iter: I)
-where
-    I: Iterator<Item = Event<'a>>,
-{
-    HtmlWriter::new(iter, s).run().unwrap();
 }
 
 /// Iterate over an `Iterator` of `Event`s, generate HTML for each `Event`, and
