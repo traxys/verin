@@ -11,6 +11,7 @@ use color_eyre::{
 };
 use glob::glob;
 use serde::Deserialize;
+use ts_highlight_html::{theme, SyntaxConfig};
 
 #[derive(Parser)]
 enum Args {
@@ -37,11 +38,17 @@ fn parse_article(s: &str) -> Result<(Metadata, &str)> {
     Ok((toml::from_str(start)?, end))
 }
 
-fn render_article(metadata: Metadata, body: &str, output: PathBuf) -> Result<()> {
+fn render_article(
+    metadata: Metadata,
+    body: &str,
+    output: PathBuf,
+    syntax_conf: &SyntaxConfig,
+) -> Result<()> {
     let mut output = BufWriter::new(
         OpenOptions::new()
             .write(true)
             .create(true)
+            .truncate(true)
             .open(output)
             .context("Could not open output file")?,
     );
@@ -53,7 +60,7 @@ fn render_article(metadata: Metadata, body: &str, output: PathBuf) -> Result<()>
     )?;
 
     let body = pulldown_cmark::Parser::new(body);
-    html::write_html(&mut output, body).context("could not generate html")?;
+    html::write_html(&mut output, body, syntax_conf).context("could not generate html")?;
 
     Ok(())
 }
@@ -61,6 +68,9 @@ fn render_article(metadata: Metadata, body: &str, output: PathBuf) -> Result<()>
 fn main() -> Result<()> {
     color_eyre::install()?;
     let args = Args::from_args();
+
+    let syntax_conf = SyntaxConfig::new(&*theme::MOONFLY);
+
     match args {
         Args::Build { input, output } => {
             std::fs::create_dir_all(&output)?;
@@ -76,7 +86,12 @@ fn main() -> Result<()> {
 
                 let (metadata, body) = parse_article(&input)?;
 
-                render_article(metadata, body, output.join(out).with_extension("html"))?;
+                render_article(
+                    metadata,
+                    body,
+                    output.join(out).with_extension("html"),
+                    &syntax_conf,
+                )?;
             }
         }
     }

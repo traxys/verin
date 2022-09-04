@@ -1,2 +1,2 @@
 [workspace]
-members = ["ssg", "xtask"]
+members = ["ssg", "xtask", "ts-highlight-html"]

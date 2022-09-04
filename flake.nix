@@ -4,6 +4,10 @@
   inputs.flake-utils.url = "github:numtide/flake-utils";
   inputs.rust-overlay.url = "github:oxalica/rust-overlay";
   inputs.naersk.url = "github:nix-community/naersk";
+  inputs.nvim-treesitter = {
+    url = "github:nvim-treesitter/nvim-treesitter";
+    flake = false;
+  };
 
   outputs = {
     self,
@@ -11,6 +15,7 @@
     flake-utils,
     rust-overlay,
     naersk,
+	nvim-treesitter,
   }:
     flake-utils.lib.eachDefaultSystem (system: let
       pkgs = import nixpkgs {
@@ -33,6 +38,10 @@
           rust
         ];
         buildInputs = [];
+
+		shellHook = ''
+			export NVIM_TREESITTER=${nvim-treesitter}
+		'';
       };
 
       defaultPackage = naersk'.buildPackage {src = ./.;};
