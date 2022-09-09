@@ -13,7 +13,12 @@ use ts_highlight_html::{theme, SyntaxConfig};
 
 #[derive(Parser)]
 enum Args {
-    Build { input: PathBuf, output: PathBuf },
+    Build {
+        input: PathBuf,
+        output: PathBuf,
+        #[clap(short, long)]
+        debug: bool,
+    },
 }
 
 #[derive(Deserialize, Debug)]
@@ -43,6 +48,7 @@ fn render_article(
     output: PathBuf,
     syntax_conf: &SyntaxConfig,
     templates: &Templates,
+    debug: bool,
 ) -> Result<()> {
     let template = templates
         .pages
@@ -65,12 +71,35 @@ fn render_article(
     let body = pulldown_cmark::Parser::new(body);
     html::write_html(&mut content, body, syntax_conf).context("could not generate html")?;
 
+    let refresh = if debug {
+        r#"
+        <script>
+            let ws = new WebSocket("ws://localhost:4111");
+            ws.onopen = function(_) {
+                console.log("WS started");
+            };
+
+            ws.onmessage = function(_) {
+                console.log("REFRESH");
+                window.location = window.location;
+            };
+
+            ws.onerror = function(error) {
+                console.log(`[error] WS error: ${error.message}`);
+            };
+        </script>
+        "#.to_string()
+    } else {
+        "".into()
+    };
+
     template.render_to(
         &mut output,
         &liquid::object!({
             "title": metadata.title,
             "date": date.format("%d %B %Y").to_string(),
             "content": String::from_utf8(content).context("generated content was not UTF-8")?,
+            "refresh": refresh,
         }),
     )?;
 
@@ -91,7 +120,11 @@ fn main() -> Result<()> {
     };
 
     match args {
-        Args::Build { input, output } => {
+        Args::Build {
+            input,
+            output,
+            debug,
+        } => {
             std::fs::create_dir_all(&output)?;
 
             for entry in glob(&input.as_path().join("**/*.liquid").to_string_lossy())? {
@@ -128,6 +161,7 @@ fn main() -> Result<()> {
                     output.join(out).with_extension("html"),
                     &syntax_conf,
                     &templates,
+                    debug,
                 )?;
             }
         }
