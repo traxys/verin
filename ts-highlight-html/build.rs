@@ -5,7 +5,7 @@ use std::{
 };
 
 fn main() -> std::io::Result<()> {
-    let languages = &["json", "rust", "nix"];
+    let languages = &["json", "rust", "nix", "toml", "yaml"];
     let nvim_treesitter_queries = concat!(env!("NVIM_TREESITTER"), "/queries");
 
     let mut out_file = BufWriter::new(
@@ -30,6 +30,24 @@ fn main() -> std::io::Result<()> {
             let mut configs = HashMap::new();
     "#
     )?;
+
+
+    write!(
+        out_file,
+        r#"
+            configs.insert("javascript", {{
+                let mut cfg = HighlightConfiguration::new(
+                    tree_sitter_javascript::language(),
+                    include_str!("{nvim_treesitter_queries}/ecma/highlights.scm"),
+                    include_str!("{nvim_treesitter_queries}/ecma/injections.scm"),
+                    include_str!("{nvim_treesitter_queries}/ecma/locals.scm"),
+                ).expect("Could not load language javascript");
+                cfg.configure(crate::HIGHLIGHT_NAMES);
+                cfg
+            }});
+        "#
+    )?;
+
     for language in languages {
         let injections = if Path::new(nvim_treesitter_queries)
             .join(format!("{language}/injections.scm"))
@@ -56,6 +74,7 @@ fn main() -> std::io::Result<()> {
         "#
         )?;
     }
+
     writeln!(out_file, "configs }});")?;
 
     Ok(())
