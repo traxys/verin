@@ -59,6 +59,7 @@ fn main() -> color_eyre::Result<()> {
                 let target = workspace.join(format!("target/{mode}/html"));
                 let mut args: Vec<_> = vec![
                     OsString::from("run"),
+                    OsString::from("--release"),
                     OsString::from("--"),
                     OsString::from("build"),
                     posts.into_os_string(),
