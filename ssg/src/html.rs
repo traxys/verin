@@ -170,7 +170,7 @@ where
                     self.write(b"\n<p>")
                 }
             }
-            Tag::Heading(level, id, mut classes) => {
+            Tag::Heading(level, id, classes) => {
                 if self.end_newline {
                     self.end_newline = false;
                     self.write(b"<")?;
@@ -183,9 +183,6 @@ where
                     escape_html(WriteWrapper(&mut self.writer), id)?;
                     self.write(b"\"")?;
                 }
-                classes.push("title");
-                let h_size = &format!("is-{}", level as u8);
-                classes.push(h_size);
                 let mut classes = classes.iter();
                 if let Some(class) = classes.next() {
                     self.write(b" class=\"")?;
