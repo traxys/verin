@@ -55,7 +55,8 @@ fn main() -> color_eyre::Result<()> {
         Some(task) => match task {
             Task::Build { debug } => {
                 let posts = workspace.join("posts");
-                let target = workspace.join("target/html");
+                let mode = if debug { "debug" } else { "release" };
+                let target = workspace.join(format!("target/{mode}/html"));
                 let mut args: Vec<_> = vec![
                     OsString::from("run"),
                     OsString::from("--"),
