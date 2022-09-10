@@ -25,6 +25,7 @@ use std::{
     io::{self, Write},
 };
 
+use bstr::ByteSlice;
 use color_eyre::Result;
 
 use pulldown_cmark::{
@@ -107,7 +108,12 @@ where
                 Text(text) => {
                     if let Some(lang) = &self.code {
                         let rendered = self.syntax.render(lang, &*text)?;
-                        self.write(&rendered)?;
+                        for line in rendered.lines() {
+                            self.write(br#"<span class="newline">"#)?;
+                            self.write(line)?;
+                            self.write(b"\n")?;
+                            self.write(br#"</span>"#)?;
+                        }
                     } else {
                         escape_html(WriteWrapper(&mut self.writer), &text)?;
                     }

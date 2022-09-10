@@ -7,6 +7,7 @@ default-run = "ssg"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+bstr = "1.0.0"
 chrono = "0.4.22"
 clap = { version = "3.2.20", features = ["derive"] }
 color-eyre = "0.6.2"
