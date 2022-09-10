@@ -946,6 +946,7 @@ dependencies = [
  "clap",
  "color-eyre",
  "glob",
+ "itertools",
  "liquid",
  "pulldown-cmark",
  "serde",

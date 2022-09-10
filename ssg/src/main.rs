@@ -32,6 +32,12 @@ struct Metadata {
     title: String,
     page: String,
     summary: String,
+    #[serde(default = "create_seven")]
+    max_depth: u8,
+}
+
+fn create_seven() -> u8 {
+    7
 }
 
 impl Metadata {
@@ -121,7 +127,7 @@ fn render_article(cfg: ArticleConfig, body: &str) -> Result<()> {
     let mut content = Vec::new();
 
     let body = pulldown_cmark::Parser::new(body);
-    html::write_html(&mut content, body, cfg.syntax_conf).context("could not generate html")?;
+    let headers = html::write_html(&mut content, body, cfg.syntax_conf)?;
 
     template.render_to(
         &mut output,
@@ -130,6 +136,8 @@ fn render_article(cfg: ArticleConfig, body: &str) -> Result<()> {
             "date": date.format(&cfg.config.date.output).to_string(),
             "content": String::from_utf8(content).context("generated content was not UTF-8")?,
             "refresh": refresh(cfg.debug),
+            "headers": headers,
+            "max_depth": cfg.metadata.max_depth,
         }),
     )?;
 

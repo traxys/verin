@@ -12,6 +12,7 @@ chrono = "0.4.22"
 clap = { version = "3.2.20", features = ["derive"] }
 color-eyre = "0.6.2"
 glob = "0.3.0"
+itertools = "0.10.3"
 liquid = "0.26.0"
 pulldown-cmark = "0.9.2"
 serde = { version = "1.0.144", features = ["derive"] }

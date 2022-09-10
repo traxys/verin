@@ -28,13 +28,86 @@ use std::{
 use bstr::ByteSlice;
 use color_eyre::Result;
 
+use itertools::Itertools;
 use pulldown_cmark::{
-    escape::{escape_href, escape_html, WriteWrapper},
+    escape::{escape_href, escape_html, StrWrite, WriteWrapper},
     Alignment, CodeBlockKind, CowStr,
     Event::{self, *},
-    LinkType, Tag,
+    HeadingLevel, LinkType, Tag,
 };
+use serde::Serialize;
 use ts_highlight_html::{Renderer, SyntaxConfig};
+
+#[derive(Debug, Serialize)]
+pub struct HeadingInfo {
+    pub level: u8,
+    pub text: String,
+    pub number: String,
+}
+
+struct HeadingStack {
+    floor: u8,
+    current: u8,
+    stack: Vec<usize>,
+}
+
+impl HeadingStack {
+    fn new() -> Self {
+        Self {
+            floor: 0,
+            current: 0,
+            stack: Vec::with_capacity(6),
+        }
+    }
+
+    fn repr(&self) -> String {
+        self.stack.iter().join(".")
+    }
+
+    fn effective_level(&self) -> u8 {
+        self.stack.len() as u8
+    }
+
+    fn enter(&mut self, level: HeadingLevel) {
+        let level = level as u8;
+
+        if self.current == 0 {
+            self.floor = level;
+            self.current = level;
+            self.stack.push(1);
+            return;
+        }
+
+        let level = std::cmp::max(level, self.floor);
+
+        match self.current.cmp(&level) {
+            std::cmp::Ordering::Greater => {
+                for _ in 0..(self.current - level) {
+                    self.stack.pop();
+                }
+                let current = self
+                    .stack
+                    .pop()
+                    .expect("invariant: if != 0 -> has something");
+                self.stack.push(current + 1);
+            }
+            std::cmp::Ordering::Equal => {
+                let current = self
+                    .stack
+                    .pop()
+                    .expect("invariant: if != 0 -> has something");
+                self.stack.push(current + 1);
+            }
+            std::cmp::Ordering::Less => {
+                for _ in 0..(level - self.current) {
+                    self.stack.push(1)
+                }
+            }
+        };
+
+        self.current = level;
+    }
+}
 
 enum TableState {
     Head,
@@ -58,6 +131,10 @@ struct HtmlWriter<'a, I, W> {
     table_alignments: Vec<Alignment>,
     table_cell_index: usize,
     numbers: HashMap<CowStr<'a>, usize>,
+
+    header_stack: HeadingStack,
+    current_header: Option<String>,
+    headers: Vec<HeadingInfo>,
 }
 
 impl<'a, I, W> HtmlWriter<'a, I, W>
@@ -76,6 +153,9 @@ where
             table_alignments: vec![],
             table_cell_index: 0,
             numbers: HashMap::new(),
+            headers: Vec::new(),
+            current_header: None,
+            header_stack: HeadingStack::new(),
         }
     }
 
@@ -88,6 +168,9 @@ where
     /// Writes a buffer, and tracks whether or not a newline was written.
     #[inline]
     fn write(&mut self, s: &[u8]) -> io::Result<()> {
+        if let Some(header) = &mut self.current_header {
+            header.write_str(&*String::from_utf8_lossy(s))?
+        }
         self.writer.write_all(s)?;
 
         if !s.is_empty() {
@@ -96,7 +179,7 @@ where
         Ok(())
     }
 
-    fn run(mut self) -> Result<()> {
+    fn run(mut self) -> Result<Vec<HeadingInfo>> {
         while let Some(event) = self.iter.next() {
             match event {
                 Start(tag) => {
@@ -115,12 +198,18 @@ where
                             self.write(br#"</span>"#)?;
                         }
                     } else {
+                        if let Some(header) = &mut self.current_header {
+                            escape_html(header, &text)?;
+                        }
                         escape_html(WriteWrapper(&mut self.writer), &text)?;
                     }
                     self.end_newline = text.ends_with('\n');
                 }
                 Code(text) => {
                     self.write(b"<code>")?;
+                    if let Some(header) = &mut self.current_header {
+                        escape_html(header, &text)?;
+                    }
                     escape_html(WriteWrapper(&mut self.writer), &text)?;
                     self.write(b"</code>")?;
                 }
@@ -143,6 +232,9 @@ where
                 FootnoteReference(name) => {
                     let len = self.numbers.len() + 1;
                     self.write(b"<sup class=\"footnote-reference\"><a href=\"#")?;
+                    if let Some(header) = &mut self.current_header {
+                        escape_html(header, &name)?;
+                    }
                     escape_html(WriteWrapper(&mut self.writer), &name)?;
                     self.write(b"\">")?;
                     let number = *self.numbers.entry(name).or_insert(len);
@@ -157,7 +249,7 @@ where
                 }
             }
         }
-        Ok(())
+        Ok(self.headers)
     }
 
     /// Writes the start of an HTML tag.
@@ -170,7 +262,8 @@ where
                     self.write(b"\n<p>")
                 }
             }
-            Tag::Heading(level, id, classes) => {
+            Tag::Heading(level, _, classes) => {
+                self.header_stack.enter(level);
                 if self.end_newline {
                     self.end_newline = false;
                     self.write(b"<")?;
@@ -178,22 +271,26 @@ where
                     self.write(b"\n<")?;
                 }
                 write!(&mut self.writer, "{}", level)?;
-                if let Some(id) = id {
-                    self.write(b" id=\"")?;
-                    escape_html(WriteWrapper(&mut self.writer), id)?;
-                    self.write(b"\"")?;
-                }
+                self.write(format!(r#" id="header-{}" "#, self.header_stack.repr()).as_bytes())?;
                 let mut classes = classes.iter();
                 if let Some(class) = classes.next() {
                     self.write(b" class=\"")?;
+                    if let Some(header) = &mut self.current_header {
+                        escape_html(header, class)?;
+                    }
                     escape_html(WriteWrapper(&mut self.writer), class)?;
                     for class in classes {
                         self.write(b" ")?;
+                        if let Some(header) = &mut self.current_header {
+                            escape_html(header, class)?;
+                        }
                         escape_html(WriteWrapper(&mut self.writer), class)?;
                     }
                     self.write(b"\"")?;
                 }
-                self.write(b">")
+                self.write(b">")?;
+                self.current_header = Some(String::new());
+                Ok(())
             }
             Tag::Table(alignments) => {
                 self.table_alignments = alignments;
@@ -334,6 +431,15 @@ where
                 self.write(b"</p>\n")?;
             }
             Tag::Heading(level, _id, _classes) => {
+                let text = self
+                    .current_header
+                    .take()
+                    .expect("header end but did not start");
+                self.headers.push(HeadingInfo {
+                    level: self.header_stack.effective_level(),
+                    text,
+                    number: self.header_stack.repr(),
+                });
                 self.write(b"</")?;
                 write!(&mut self.writer, "{}", level)?;
                 self.write(b">\n")?;
@@ -460,7 +566,11 @@ where
 /// </ul>
 /// "#);
 /// ```
-pub fn write_html<'a, I, W>(writer: W, iter: I, syntax: &'a SyntaxConfig) -> Result<()>
+pub fn write_html<'a, I, W>(
+    writer: W,
+    iter: I,
+    syntax: &'a SyntaxConfig,
+) -> Result<Vec<HeadingInfo>>
 where
     I: Iterator<Item = Event<'a>>,
     W: Write,
