@@ -94,7 +94,8 @@ fn main() -> color_eyre::Result<()> {
                                                 if let Err(e) = ws.write_message(
                                                     tungstenite::Message::text("xxx"),
                                                 ) {
-                                                    println!("WS error: {e:?}")
+                                                    println!("WS error: {e:?}");
+                                                    return;
                                                 };
                                             }
                                             println!("Finished websocket")
