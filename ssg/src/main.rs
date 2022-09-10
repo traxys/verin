@@ -1,4 +1,9 @@
-use std::{collections::HashMap, fs::OpenOptions, io::BufWriter, path::PathBuf};
+use std::{
+    collections::HashMap,
+    fs::OpenOptions,
+    io::BufWriter,
+    path::{Path, PathBuf},
+};
 
 use chrono::NaiveDate;
 use clap::Parser;
@@ -8,7 +13,7 @@ use color_eyre::{
 };
 use glob::glob;
 use liquid::Template;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use ts_highlight_html::{theme, SyntaxConfig};
 
 #[derive(Parser)]
@@ -21,14 +26,33 @@ enum Args {
     },
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 struct Metadata {
     date: String,
     title: String,
     page: String,
+    summary: String,
+}
+
+impl Metadata {
+    fn date(&self, config: &Config) -> Result<NaiveDate> {
+        Ok(NaiveDate::parse_from_str(&self.date, &config.date.input)?)
+    }
 }
 
 mod html;
+
+#[derive(Deserialize, Debug)]
+struct Config {
+    name: String,
+    date: DateConfig,
+}
+
+#[derive(Deserialize, Debug)]
+struct DateConfig {
+    input: String,
+    output: String,
+}
 
 fn parse_article(s: &str) -> Result<(Metadata, &str)> {
     let pattern = "/~";
@@ -42,36 +66,8 @@ fn parse_article(s: &str) -> Result<(Metadata, &str)> {
     Ok((toml::from_str(start)?, end))
 }
 
-fn render_article(
-    metadata: Metadata,
-    body: &str,
-    output: PathBuf,
-    syntax_conf: &SyntaxConfig,
-    templates: &Templates,
-    debug: bool,
-) -> Result<()> {
-    let template = templates
-        .pages
-        .get(&metadata.page)
-        .ok_or_else(|| eyre::eyre!("Template `{}` does not exist", metadata.page))?;
-
-    let date = NaiveDate::parse_from_str(&metadata.date, "%d/%m/%Y")?;
-
-    let mut output = BufWriter::new(
-        OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(output)
-            .context("Could not open output file")?,
-    );
-
-    let mut content = Vec::new();
-
-    let body = pulldown_cmark::Parser::new(body);
-    html::write_html(&mut content, body, syntax_conf).context("could not generate html")?;
-
-    let refresh = if debug {
+fn refresh(debug: bool) -> String {
+    if debug {
         r#"
         <script>
             let ws = new WebSocket("ws://localhost:4111");
@@ -88,18 +84,52 @@ fn render_article(
                 console.log(`[error] WS error: ${error.message}`);
             };
         </script>
-        "#.to_string()
+        "#
+        .into()
     } else {
         "".into()
-    };
+    }
+}
+
+struct ArticleConfig<'a> {
+    metadata: Metadata,
+    output: PathBuf,
+    syntax_conf: &'a SyntaxConfig<'a>,
+    templates: &'a Templates,
+    debug: bool,
+    config: &'a Config,
+}
+
+fn render_article(cfg: ArticleConfig, body: &str) -> Result<()> {
+    let template = cfg
+        .templates
+        .pages
+        .get(&cfg.metadata.page)
+        .ok_or_else(|| eyre::eyre!("Template `{}` does not exist", cfg.metadata.page))?;
+
+    let date = cfg.metadata.date(cfg.config)?;
+
+    let mut output = BufWriter::new(
+        OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(cfg.output)
+            .context("Could not open output file")?,
+    );
+
+    let mut content = Vec::new();
+
+    let body = pulldown_cmark::Parser::new(body);
+    html::write_html(&mut content, body, cfg.syntax_conf).context("could not generate html")?;
 
     template.render_to(
         &mut output,
         &liquid::object!({
-            "title": metadata.title,
-            "date": date.format("%d %B %Y").to_string(),
+            "title": cfg.metadata.title,
+            "date": date.format(&cfg.config.date.output).to_string(),
             "content": String::from_utf8(content).context("generated content was not UTF-8")?,
-            "refresh": refresh,
+            "refresh": refresh(cfg.debug),
         }),
     )?;
 
@@ -127,6 +157,11 @@ fn main() -> Result<()> {
         } => {
             std::fs::create_dir_all(&output)?;
 
+            let config: Config = toml::from_str(
+                &std::fs::read_to_string(input.join("config.toml"))
+                    .context("Could not read config.toml")?,
+            )?;
+
             for entry in glob(&input.as_path().join("**/*.liquid").to_string_lossy())? {
                 let entry = entry?;
                 let template = liquid::ParserBuilder::with_stdlib()
@@ -144,6 +179,8 @@ fn main() -> Result<()> {
                 );
             }
 
+            let mut articles = Vec::new();
+
             for entry in glob(&input.as_path().join("**/*.md").to_string_lossy())? {
                 let entry = entry?;
                 let entry = entry.to_string_lossy();
@@ -155,13 +192,81 @@ fn main() -> Result<()> {
 
                 let (metadata, body) = parse_article(&input)?;
 
+                articles.push((metadata.clone(), Path::new(out).with_extension("html")));
+
                 render_article(
-                    metadata,
+                    ArticleConfig {
+                        metadata,
+                        output: output.join(out).with_extension("html"),
+                        syntax_conf: &syntax_conf,
+                        templates: &templates,
+                        config: &config,
+                        debug,
+                    },
                     body,
-                    output.join(out).with_extension("html"),
-                    &syntax_conf,
-                    &templates,
-                    debug,
+                )?;
+            }
+
+            let index = templates
+                .pages
+                .get("index")
+                .context("should provide an index.html")?;
+            {
+                struct ArticleInfo {
+                    date: NaiveDate,
+                    name: String,
+                    page: String,
+                    summary: String,
+                }
+
+                #[derive(Debug, Serialize)]
+                struct ArticleInfoStr {
+                    date: String,
+                    name: String,
+                    page: String,
+                    summary: String,
+                }
+
+                let info: Result<Vec<_>, _> = articles
+                    .into_iter()
+                    .map(|(metadata, file)| -> Result<_> {
+                        Ok(ArticleInfo {
+                            date: metadata.date(&config)?,
+                            name: metadata.title,
+                            page: file.file_name().unwrap().to_string_lossy().to_string(),
+                            summary: metadata.summary,
+                        })
+                    })
+                    .collect();
+                let mut info = info?;
+                info.sort_unstable_by(|a, b| a.date.cmp(&b.date));
+
+                let info_str: Vec<_> = info
+                    .into_iter()
+                    .map(|info| ArticleInfoStr {
+                        name: info.name,
+                        page: info.page,
+                        summary: info.summary,
+                        date: info.date.format(&config.date.output).to_string(),
+                    })
+                    .collect();
+
+                let mut output = BufWriter::new(
+                    OpenOptions::new()
+                        .write(true)
+                        .create(true)
+                        .truncate(true)
+                        .open(output.join("index.html"))
+                        .context("Could not open output file")?,
+                );
+
+                index.render_to(
+                    &mut output,
+                    &liquid::object!({
+                        "blog_name": &config.name,
+                        "refresh": refresh(debug),
+                        "articles": info_str,
+                    }),
                 )?;
             }
         }
