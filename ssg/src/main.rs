@@ -234,7 +234,7 @@ fn main() -> Result<()> {
                             date: metadata.date(&config)?,
                             name: metadata.title,
                             page: file.file_name().unwrap().to_string_lossy().to_string(),
-                            summary: metadata.summary,
+                            summary: metadata.summary.trim_end().replace('\n', "<br/>"),
                         })
                     })
                     .collect();
