@@ -5,7 +5,7 @@ use std::{
 };
 
 fn main() -> std::io::Result<()> {
-    let languages = &["json", "rust", "nix", "toml", "yaml"];
+    let languages = &["json", "rust", "nix", "toml", "yaml", "linkerscript"];
     let nvim_treesitter_queries = concat!(env!("NVIM_TREESITTER"), "/queries");
 
     let mut out_file = BufWriter::new(

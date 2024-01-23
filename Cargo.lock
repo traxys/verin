@@ -1195,6 +1195,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tree-sitter-linkerscript"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d50cb2ade04c0da5280054f4e90dc7018f6bacdf35cee02d4573637bc698af20"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
 name = "tree-sitter-nix"
 version = "0.0.1"
 source = "git+https://github.com/cstrahan/tree-sitter-nix#763168fa916a333a459434f1424b5d30645f015d"
@@ -1240,6 +1250,7 @@ dependencies = [
  "tree-sitter-highlight",
  "tree-sitter-javascript",
  "tree-sitter-json",
+ "tree-sitter-linkerscript",
  "tree-sitter-nix",
  "tree-sitter-rust",
  "tree-sitter-toml",
