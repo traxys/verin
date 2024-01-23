@@ -247,7 +247,7 @@ fn main() -> Result<()> {
                     })
                     .collect();
                 let mut info = info?;
-                info.sort_unstable_by(|a, b| a.date.cmp(&b.date));
+                info.sort_unstable_by(|a, b| b.date.cmp(&a.date));
 
                 let info_str: Vec<_> = info
                     .into_iter()
