@@ -49,7 +49,7 @@ fn main() -> color_eyre::Result<()> {
         .nth(1)
         .expect("could not get workspace root");
 
-    let args = Args::from_args();
+    let args = Args::parse();
     match args.task {
         None => Args::command().print_help()?,
         Some(task) => match task {
@@ -92,9 +92,9 @@ fn main() -> color_eyre::Result<()> {
                                         spawn(move || {
                                             while r.recv().is_ok() {
                                                 println!("Request taken into account");
-                                                if let Err(e) = ws.write_message(
-                                                    tungstenite::Message::text("xxx"),
-                                                ) {
+                                                if let Err(e) =
+                                                    ws.send(tungstenite::Message::text("xxx"))
+                                                {
                                                     println!("WS error: {e:?}");
                                                     return;
                                                 };

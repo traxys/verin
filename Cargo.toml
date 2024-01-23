@@ -1,2 +1,3 @@
 [workspace]
 members = ["ssg", "xtask", "ts-highlight-html"]
+resolver = "2"

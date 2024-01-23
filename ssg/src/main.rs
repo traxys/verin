@@ -150,9 +150,9 @@ struct Templates {
 
 fn main() -> Result<()> {
     color_eyre::install()?;
-    let args = Args::from_args();
+    let args = Args::parse();
 
-    let syntax_conf = SyntaxConfig::new(&*theme::MOONFLY);
+    let syntax_conf = SyntaxConfig::new(&theme::MOONFLY);
     let mut templates = Templates {
         pages: HashMap::new(),
     };
