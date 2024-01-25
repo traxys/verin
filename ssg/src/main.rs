@@ -215,6 +215,25 @@ fn main() -> Result<()> {
                 )?;
             }
 
+            if let Some(not_found) = templates.pages.get("not_found") {
+                let mut output = BufWriter::new(
+                    OpenOptions::new()
+                        .write(true)
+                        .create(true)
+                        .truncate(true)
+                        .open(output.join("404.html"))
+                        .context("Could not open output file")?,
+                );
+
+                not_found.render_to(
+                    &mut output,
+                    &liquid::object!({
+                        "blog_name": &config.name,
+                        "refresh": refresh(debug),
+                    }),
+                )?;
+            }
+
             let index = templates
                 .pages
                 .get("index")
