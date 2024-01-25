@@ -189,19 +189,22 @@ where
                     self.end_tag(tag)?;
                 }
                 Text(text) => {
-                    if let Some(lang) = &self.code {
-                        let rendered = self.syntax.render(lang, &*text)?;
-                        for line in rendered.lines() {
-                            self.write(br#"<span class="newline">"#)?;
-                            self.write(line)?;
-                            self.write(b"\n")?;
-                            self.write(br#"</span>"#)?;
+                    match self.code.as_deref() {
+                        None | Some("") => {
+                            if let Some(header) = &mut self.current_header {
+                                escape_html(header, &text)?;
+                            }
+                            escape_html(WriteWrapper(&mut self.writer), &text)?;
                         }
-                    } else {
-                        if let Some(header) = &mut self.current_header {
-                            escape_html(header, &text)?;
+                        Some(lang) => {
+                            let rendered = self.syntax.render(lang, &text)?;
+                            for line in rendered.lines() {
+                                self.write(br#"<span class="newline">"#)?;
+                                self.write(line)?;
+                                self.write(b"\n")?;
+                                self.write(br#"</span>"#)?;
+                            }
                         }
-                        escape_html(WriteWrapper(&mut self.writer), &text)?;
                     }
                     self.end_newline = text.ends_with('\n');
                 }
