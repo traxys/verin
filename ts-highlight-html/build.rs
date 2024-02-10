@@ -48,6 +48,22 @@ fn main() -> std::io::Result<()> {
         "#
     )?;
 
+    write!(
+        out_file,
+        r#"
+            configs.insert("asm", {{
+                let mut cfg = HighlightConfiguration::new(
+                    tree_sitter_asm::language(),
+                    include_str!("{nvim_treesitter_queries}/asm/highlights.scm"),
+                    "",
+                    include_str!("{nvim_treesitter_queries}/asm/injections.scm"),
+                ).expect("Could not load language asm");
+                cfg.configure(crate::HIGHLIGHT_NAMES);
+                cfg
+            }});
+        "#
+    )?;
+
     for language in languages {
         let injections = if Path::new(nvim_treesitter_queries)
             .join(format!("{language}/injections.scm"))
