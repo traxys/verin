@@ -63,13 +63,20 @@ fn main() -> color_eyre::Result<()> {
                     OsString::from("--"),
                     OsString::from("build"),
                     posts.into_os_string(),
-                    target.into_os_string(),
+                    target.clone().into_os_string(),
                 ];
                 if debug {
                     args.push("--debug".into());
                 }
 
                 duct::cmd(env!("CARGO"), args).dir(workspace).run()?;
+
+                duct::cmd!("rm", "-rf", target.join("public"))
+                    .dir(workspace)
+                    .run()?;
+                duct::cmd!("cp", "-r", workspace.join("public"), target)
+                    .dir(workspace)
+                    .run()?;
             }
             Task::RefreshServer {
                 refresh_port,
