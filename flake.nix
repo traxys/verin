@@ -15,7 +15,7 @@
     flake-utils,
     rust-overlay,
     naersk,
-	nvim-treesitter,
+    nvim-treesitter,
   }:
     flake-utils.lib.eachDefaultSystem (system: let
       pkgs = import nixpkgs {
@@ -35,14 +35,14 @@
       devShell = pkgs.mkShell {
         nativeBuildInputs = [
           pkgs.bashInteractive
-		  pkgs.cargo-watch
+          pkgs.cargo-watch
           rust
         ];
         buildInputs = [];
 
-		shellHook = ''
-			export NVIM_TREESITTER=${nvim-treesitter}
-		'';
+        shellHook = ''
+          export NVIM_TREESITTER=${nvim-treesitter}
+        '';
       };
 
       defaultPackage = naersk'.buildPackage {src = ./.;};
