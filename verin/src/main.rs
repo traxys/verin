@@ -187,6 +187,10 @@ fn main() -> Result<()> {
         } => {
             std::fs::create_dir_all(&output)?;
 
+            let input = input
+                .canonicalize()
+                .context("failed to canonicalize input")?;
+
             let config: Config = toml::from_str(
                 &std::fs::read_to_string(input.join("config.toml"))
                     .context("Could not read config.toml")?,
@@ -213,10 +217,10 @@ fn main() -> Result<()> {
 
             for entry in glob(&input.as_path().join("**/*.md").to_string_lossy())? {
                 let entry = entry?;
-                let entry = entry.to_string_lossy();
+
                 let out = entry
-                    .trim_start_matches(&*input.to_string_lossy())
-                    .trim_start_matches('/');
+                    .strip_prefix(&input)
+                    .context("could not remove leading dir from file")?;
 
                 let input = std::fs::read_to_string(&*entry)?;
 
