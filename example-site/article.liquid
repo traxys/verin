@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+	<head>
+		<title>{{ title }}</title>
+	</head>
+	<body>
+		<h1>{{ title }}</h1>
+		<h2>{{ date }}</h2>
+		{% for heading in headers %}
+            {% if heading.level < max_depth %}
+                <div>
+                    {{heading.number}} - <a href="#header-{{heading.number}}">{{ heading.text }}</a>
+                </div>
+            {% endif %}
+        {% endfor %}
+
+		{{ content }}
+	</body>
+</html>
