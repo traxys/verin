@@ -23,6 +23,8 @@ enum Args {
         output: PathBuf,
         #[clap(short, long)]
         debug: bool,
+        #[clap(long, default_value = "4111")]
+        refresh_port: u16,
     },
 }
 
@@ -72,25 +74,27 @@ fn parse_article(s: &str) -> Result<(Metadata, &str)> {
     Ok((toml::from_str(start)?, end))
 }
 
-fn refresh(debug: bool) -> String {
+fn refresh(debug: bool, port: u16) -> String {
     if debug {
-        r#"
+        format!(
+            r#"
         <script>
-            let ws = new WebSocket("ws://localhost:4111");
-            ws.onopen = function(_) {
+            let ws = new WebSocket("ws://localhost:{port}");
+            ws.onopen = function(_) {{
                 console.log("WS started");
-            };
+            }};
 
-            ws.onmessage = function(_) {
+            ws.onmessage = function(_) {{
                 console.log("REFRESH");
                 window.location = window.location;
-            };
+            }};
 
-            ws.onerror = function(error) {
-                console.log(`[error] WS error: ${error.message}`);
-            };
+            ws.onerror = function(error) {{
+                console.log(`[error] WS error: ${{error.message}}`);
+            }};
         </script>
         "#
+        )
         .into()
     } else {
         "".into()
@@ -106,7 +110,7 @@ struct ArticleConfig<'a> {
     config: &'a Config,
 }
 
-fn render_article(cfg: ArticleConfig, body: &str) -> Result<()> {
+fn render_article(cfg: ArticleConfig, body: &str, refresh_port: u16) -> Result<()> {
     let template = cfg
         .templates
         .pages
@@ -135,7 +139,7 @@ fn render_article(cfg: ArticleConfig, body: &str) -> Result<()> {
             "title": cfg.metadata.title,
             "date": date.format(&cfg.config.date.output).to_string(),
             "content": String::from_utf8(content).context("generated content was not UTF-8")?,
-            "refresh": refresh(cfg.debug),
+            "refresh": refresh(cfg.debug, refresh_port),
             "headers": headers,
             "max_depth": cfg.metadata.max_depth,
         }),
@@ -162,6 +166,7 @@ fn main() -> Result<()> {
             input,
             output,
             debug,
+            refresh_port,
         } => {
             std::fs::create_dir_all(&output)?;
 
@@ -212,6 +217,7 @@ fn main() -> Result<()> {
                         debug,
                     },
                     body,
+                    refresh_port,
                 )?;
             }
 
@@ -229,7 +235,7 @@ fn main() -> Result<()> {
                     &mut output,
                     &liquid::object!({
                         "blog_name": &config.name,
-                        "refresh": refresh(debug),
+                        "refresh": refresh(debug, refresh_port),
                     }),
                 )?;
             }
@@ -291,7 +297,7 @@ fn main() -> Result<()> {
                     &mut output,
                     &liquid::object!({
                         "blog_name": &config.name,
-                        "refresh": refresh(debug),
+                        "refresh": refresh(debug, refresh_port),
                         "articles": info_str,
                     }),
                 )?;
