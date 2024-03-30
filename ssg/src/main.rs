@@ -21,10 +21,26 @@ enum Args {
     Build {
         input: PathBuf,
         output: PathBuf,
+        /// Listen on the refresh server for refresh requests
         #[clap(short, long)]
         debug: bool,
         #[clap(long, default_value = "4111")]
         refresh_port: u16,
+    },
+    /// Start the refresh server used for debug mode
+    ///
+    /// Whenever a refresh request occurs the server sends the request to the webpage by websocket.
+    StartRefreshServer {
+        /// Port on which the websockets listen
+        #[clap(short = 'r', long, default_value = "4111")]
+        refresh_port: u16,
+        /// Port on which the server listens for refresh requests
+        #[clap(short = 'p', long, default_value = "4112")]
+        request_port: u16,
+    },
+    TriggerRefresh {
+        #[clap(short, long, default_value = "4112")]
+        port: u16,
     },
 }
 
@@ -49,6 +65,7 @@ impl Metadata {
 }
 
 mod html;
+mod refresh;
 
 #[derive(Deserialize, Debug)]
 struct Config {
@@ -303,6 +320,11 @@ fn main() -> Result<()> {
                 )?;
             }
         }
+        Args::StartRefreshServer {
+            refresh_port,
+            request_port,
+        } => refresh::refresh_server(refresh_port, request_port)?,
+        Args::TriggerRefresh { port } => refresh::trigger_refresh(port)?,
     }
     Ok(())
 }

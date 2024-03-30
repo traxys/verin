@@ -978,6 +978,7 @@ name = "ssg"
 version = "0.1.0"
 dependencies = [
  "bstr",
+ "bus",
  "chrono",
  "clap",
  "color-eyre",
@@ -988,6 +989,7 @@ dependencies = [
  "serde",
  "toml",
  "ts-highlight-html",
+ "tungstenite",
 ]
 
 [[package]]
