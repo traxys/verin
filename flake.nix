@@ -3,7 +3,9 @@
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
   inputs.flake-utils.url = "github:numtide/flake-utils";
   inputs.rust-overlay.url = "github:oxalica/rust-overlay";
-  inputs.naersk.url = "github:nix-community/naersk";
+  inputs.rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
+  inputs.crane.url = "github:ipetkov/crane";
+  inputs.crane.inputs.nixpkgs.follows = "nixpkgs";
   inputs.nvim-treesitter = {
     url = "github:nvim-treesitter/nvim-treesitter";
     flake = false;
@@ -14,7 +16,7 @@
     nixpkgs,
     flake-utils,
     rust-overlay,
-    naersk,
+    crane,
     nvim-treesitter,
   }:
     flake-utils.lib.eachDefaultSystem (system: let
@@ -25,11 +27,6 @@
       };
       rust = pkgs.rust-bin.stable.latest.default.override {
         extensions = ["llvm-tools-preview" "rust-src"];
-      };
-
-      naersk' = pkgs.callPackage naersk {
-        cargo = rust;
-        rustc = rust;
       };
     in {
       devShell = pkgs.mkShell {
@@ -45,6 +42,19 @@
         '';
       };
 
-      defaultPackage = naersk'.buildPackage {src = ./.;};
+      packages = let
+        craneLib = (crane.mkLib pkgs).overrideToolchain rust;
+      in {
+        default = craneLib.buildPackage {
+          pname = "verin";
+          version =
+            if (self ? shortRev)
+            then self.shortRev
+            else self.dirtyShortRev;
+
+          src = craneLib.cleanCargoSource (craneLib.path ./.);
+          NVIM_TREESITTER = "${nvim-treesitter}";
+        };
+      };
     });
 }
