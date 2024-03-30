@@ -32,7 +32,6 @@
       devShell = pkgs.mkShell {
         nativeBuildInputs = [
           pkgs.bashInteractive
-          pkgs.cargo-watch
           rust
         ];
         buildInputs = [];

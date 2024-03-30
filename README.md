@@ -6,7 +6,7 @@
 - No dependency on styling. You can style your website exactly as you like.
 - No need to declare all your pages. Just create a markdown file, add some metadata and start writing.
 - Auto-refresh for development. By supplying the `--debug` flag a small snippet of javascript can be inserted in the pages to auto refresh the pages.
-- Syntax highlight of code blocks using tree-sitter. Right now only `json`, `rust` and `nix` are bundled, but it is easy to add more.
+- Syntax highlight of code blocks using tree-sitter. Many languages are supported like `rust`, `javascript`, `yaml`, `asm`, ...
 
 ## Usage
 
@@ -58,12 +58,13 @@ The following information is required (in a toml format):
 
 ### Building
 
-In order to build your static website you can run `cargo run posts <output-dir> [--debug]`
-You can also use `cargo xtask build [--debug]` and it will use as input the `posts` directory and as output the `target/<release|debug>/html` directory.
+In order to build your static website you can run `verin build <posts-dir> <output-dir> [--debug]`.
 
-### Watching
+### Refreshing
 
-You can run `cargo xtask watch` in order to re-build & refresh the webpages on each change in the workspace.
+Verin adds some machinery to support refreshing the generated webpages on changes.
+You can run `verin start-refresh-server` to start the server that will allow webpages to receive refresh signals.
+The command `verin trigger-refresh` allows to connect to the refresh server, that will forward the requests to the web pages.
 
 ## Name
 
