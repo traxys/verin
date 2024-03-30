@@ -1258,7 +1258,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-yaml"
 version = "0.0.1"
-source = "git+https://github.com/traxys/tree-sitter-yaml#6a9e1128c18d10cc1490c93c9d784a73811448ea"
+source = "git+https://github.com/traxys/tree-sitter-yaml#87fb3ce6ca04cbb01abec62497fba9adc7794a5d"
 dependencies = [
  "cc",
  "tree-sitter",
