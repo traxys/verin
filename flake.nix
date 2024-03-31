@@ -49,7 +49,9 @@
           version =
             if (self ? shortRev)
             then self.shortRev
-            else self.dirtyShortRev;
+            else if (self ? dirtyShortRev)
+            then self.dirtyShortRev
+            else "unknown";
 
           src = craneLib.cleanCargoSource (craneLib.path ./.);
           NVIM_TREESITTER = "${nvim-treesitter}";
