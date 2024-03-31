@@ -103,7 +103,7 @@ fn refresh(debug: bool, port: u16) -> String {
 
             ws.onmessage = function(_) {{
                 console.log("REFRESH");
-                window.location = window.location;
+                document.location.reload()
             }};
 
             ws.onerror = function(error) {{
