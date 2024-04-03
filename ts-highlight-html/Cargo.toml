@@ -18,3 +18,4 @@ tree-sitter-rust = { git = "https://github.com/tree-sitter/tree-sitter-rust" }
 tree-sitter-toml = "0.20"
 tree-sitter-yaml = { git = "https://github.com/traxys/tree-sitter-yaml" }
 tree-sitter-asm = { git = "https://github.com/RubixDev/tree-sitter-asm" }
+tree-sitter-devicetree = { git = "https://github.com/joelspadin/tree-sitter-devicetree", rev = "v0.9.0" }

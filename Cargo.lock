@@ -1135,6 +1135,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tree-sitter-devicetree"
+version = "0.4.0"
+source = "git+https://github.com/joelspadin/tree-sitter-devicetree?rev=v0.9.0#6b53bfdb20a54727bfe344aa40907351a298f75c"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
 name = "tree-sitter-highlight"
 version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1219,6 +1228,7 @@ dependencies = [
  "once_cell",
  "thiserror",
  "tree-sitter-asm",
+ "tree-sitter-devicetree",
  "tree-sitter-highlight",
  "tree-sitter-javascript",
  "tree-sitter-json",

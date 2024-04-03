@@ -5,7 +5,15 @@ use std::{
 };
 
 fn main() -> std::io::Result<()> {
-    let languages = &["json", "rust", "nix", "toml", "yaml", "linkerscript"];
+    let languages = &[
+        "json",
+        "rust",
+        "nix",
+        "toml",
+        "yaml",
+        "linkerscript",
+        "devicetree",
+    ];
     let nvim_treesitter_queries = concat!(env!("NVIM_TREESITTER"), "/queries");
 
     let mut out_file = BufWriter::new(
@@ -30,7 +38,6 @@ fn main() -> std::io::Result<()> {
             let mut configs = HashMap::new();
     "#
     )?;
-
 
     write!(
         out_file,
