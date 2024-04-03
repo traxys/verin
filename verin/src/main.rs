@@ -173,7 +173,7 @@ fn main() -> Result<()> {
     color_eyre::install()?;
     let args = Args::parse();
 
-    let syntax_conf = SyntaxConfig::new(&theme::MOONFLY);
+    let syntax_conf = SyntaxConfig::new(&theme::TOKYO_NIGHT);
     let mut templates = Templates {
         pages: HashMap::new(),
     };
