@@ -30,11 +30,11 @@ use color_eyre::Result;
 
 use itertools::Itertools;
 use pulldown_cmark::{
-    escape::{escape_href, escape_html, StrWrite, WriteWrapper},
     Alignment, CodeBlockKind, CowStr,
     Event::{self, *},
-    HeadingLevel, LinkType, Tag,
+    HeadingLevel, LinkType, Tag, TagEnd,
 };
+use pulldown_cmark_escape::{escape_href, escape_html, StrWrite, WriteWrapper};
 use serde::Serialize;
 use ts_highlight_html::{Renderer, SyntaxConfig};
 
@@ -124,6 +124,9 @@ struct HtmlWriter<'a, I, W> {
     /// Whether or not the last write wrote a newline.
     end_newline: bool,
 
+    /// Whether if inside a metadata block (text should not be written)
+    in_non_writing_block: bool,
+
     code: Option<CowStr<'a>>,
     syntax: Renderer<'a>,
 
@@ -149,6 +152,7 @@ where
             syntax: Renderer::new(syntax),
             code: None,
             end_newline: true,
+            in_non_writing_block: false,
             table_state: TableState::Head,
             table_alignments: vec![],
             table_cell_index: 0,
@@ -216,7 +220,7 @@ where
                     escape_html(WriteWrapper(&mut self.writer), &text)?;
                     self.write(b"</code>")?;
                 }
-                Html(html) => {
+                Html(html) | InlineHtml(html) => {
                     self.write(html.as_bytes())?;
                 }
                 SoftBreak => {
@@ -258,6 +262,7 @@ where
     /// Writes the start of an HTML tag.
     fn start_tag(&mut self, tag: Tag<'a>) -> io::Result<()> {
         match tag {
+            Tag::HtmlBlock => Ok(()),
             Tag::Paragraph => {
                 if self.end_newline {
                     self.write(b"<p>")
@@ -265,7 +270,12 @@ where
                     self.write(b"\n<p>")
                 }
             }
-            Tag::Heading(level, _, classes) => {
+            Tag::Heading {
+                level,
+                id: _,
+                classes,
+                attrs,
+            } => {
                 self.header_stack.enter(level);
                 if self.end_newline {
                     self.end_newline = false;
@@ -290,6 +300,17 @@ where
                         escape_html(WriteWrapper(&mut self.writer), class)?;
                     }
                     self.write(b"\"")?;
+                }
+                for (attr, value) in attrs {
+                    self.write(b" ")?;
+                    escape_html(WriteWrapper(&mut self.writer), &attr)?;
+                    if let Some(val) = value {
+                        self.write(b"=\"")?;
+                        escape_html(WriteWrapper(&mut self.writer), &val)?;
+                        self.write(b"\"")?;
+                    } else {
+                        self.write(b"=\"\"")?;
+                    }
                 }
                 self.write(b">")?;
                 self.current_header = Some(String::new());
@@ -383,27 +404,42 @@ where
             Tag::Emphasis => self.write(b"<em>"),
             Tag::Strong => self.write(b"<strong>"),
             Tag::Strikethrough => self.write(b"<del>"),
-            Tag::Link(LinkType::Email, dest, title) => {
+            Tag::Link {
+                link_type: LinkType::Email,
+                dest_url,
+                title,
+                id: _,
+            } => {
                 self.write(b"<a href=\"mailto:")?;
-                escape_href(WriteWrapper(&mut self.writer), &dest)?;
+                escape_href(WriteWrapper(&mut self.writer), &dest_url)?;
                 if !title.is_empty() {
                     self.write(b"\" title=\"")?;
                     escape_html(WriteWrapper(&mut self.writer), &title)?;
                 }
                 self.write(b"\">")
             }
-            Tag::Link(_link_type, dest, title) => {
+            Tag::Link {
+                link_type: _,
+                dest_url,
+                title,
+                id: _,
+            } => {
                 self.write(b"<a href=\"")?;
-                escape_href(WriteWrapper(&mut self.writer), &dest)?;
+                escape_href(WriteWrapper(&mut self.writer), &dest_url)?;
                 if !title.is_empty() {
                     self.write(b"\" title=\"")?;
                     escape_html(WriteWrapper(&mut self.writer), &title)?;
                 }
                 self.write(b"\">")
             }
-            Tag::Image(_link_type, dest, title) => {
+            Tag::Image {
+                link_type: _,
+                dest_url,
+                title,
+                id: _,
+            } => {
                 self.write(b"<img src=\"")?;
-                escape_href(WriteWrapper(&mut self.writer), &dest)?;
+                escape_href(WriteWrapper(&mut self.writer), &dest_url)?;
                 self.write(b"\" alt=\"")?;
                 self.raw_text()?;
                 if !title.is_empty() {
@@ -425,15 +461,20 @@ where
                 write!(&mut self.writer, "{}", number)?;
                 self.write(b"</sup>")
             }
+            Tag::MetadataBlock(_) => {
+                self.in_non_writing_block = true;
+                Ok(())
+            }
         }
     }
 
-    fn end_tag(&mut self, tag: Tag) -> io::Result<()> {
+    fn end_tag(&mut self, tag: TagEnd) -> io::Result<()> {
         match tag {
-            Tag::Paragraph => {
+            TagEnd::HtmlBlock => {}
+            TagEnd::Paragraph => {
                 self.write(b"</p>\n")?;
             }
-            Tag::Heading(level, _id, _classes) => {
+            TagEnd::Heading(level) => {
                 let text = self
                     .current_header
                     .take()
@@ -447,17 +488,17 @@ where
                 write!(&mut self.writer, "{}", level)?;
                 self.write(b">\n")?;
             }
-            Tag::Table(_) => {
+            TagEnd::Table => {
                 self.write(b"</tbody></table>\n")?;
             }
-            Tag::TableHead => {
+            TagEnd::TableHead => {
                 self.write(b"</tr></thead><tbody>\n")?;
                 self.table_state = TableState::Body;
             }
-            Tag::TableRow => {
+            TagEnd::TableRow => {
                 self.write(b"</tr>\n")?;
             }
-            Tag::TableCell => {
+            TagEnd::TableCell => {
                 match self.table_state {
                     TableState::Head => {
                         self.write(b"</th>")?;
@@ -468,37 +509,40 @@ where
                 }
                 self.table_cell_index += 1;
             }
-            Tag::BlockQuote => {
+            TagEnd::BlockQuote => {
                 self.write(b"</blockquote>\n")?;
             }
-            Tag::CodeBlock(_) => {
+            TagEnd::CodeBlock => {
                 self.code = None;
                 self.write(b"</code></pre>")?;
             }
-            Tag::List(Some(_)) => {
+            TagEnd::List(true) => {
                 self.write(b"</ol>\n")?;
             }
-            Tag::List(None) => {
+            TagEnd::List(false) => {
                 self.write(b"</ul>\n")?;
             }
-            Tag::Item => {
+            TagEnd::Item => {
                 self.write(b"</li>\n")?;
             }
-            Tag::Emphasis => {
+            TagEnd::Emphasis => {
                 self.write(b"</em>")?;
             }
-            Tag::Strong => {
+            TagEnd::Strong => {
                 self.write(b"</strong>")?;
             }
-            Tag::Strikethrough => {
+            TagEnd::Strikethrough => {
                 self.write(b"</del>")?;
             }
-            Tag::Link(_, _, _) => {
+            TagEnd::Link => {
                 self.write(b"</a>")?;
             }
-            Tag::Image(_, _, _) => (), // shouldn't happen, handled in start
-            Tag::FootnoteDefinition(_) => {
+            TagEnd::FootnoteDefinition => {
                 self.write(b"</div>\n")?;
+            }
+            TagEnd::Image => (), // shouldn't happen, handled in start
+            TagEnd::MetadataBlock(_) => {
+                self.in_non_writing_block = false;
             }
         }
         Ok(())
@@ -516,7 +560,8 @@ where
                     }
                     nest -= 1;
                 }
-                Html(text) | Code(text) | Text(text) => {
+                Html(_) => {},
+                InlineHtml(text) | Code(text) | Text(text) => {
                     escape_html(WriteWrapper(&mut self.writer), &text)?;
                     self.end_newline = text.ends_with('\n');
                 }
