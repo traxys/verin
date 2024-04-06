@@ -13,6 +13,7 @@ use color_eyre::{
 };
 use glob::glob;
 use liquid::Template;
+use pulldown_cmark::Options;
 use serde::{Deserialize, Serialize};
 use ts_highlight_html::{theme, SyntaxConfig};
 
@@ -147,7 +148,7 @@ fn render_article(cfg: ArticleConfig, body: &str, refresh_port: u16) -> Result<(
 
     let mut content = Vec::new();
 
-    let body = pulldown_cmark::Parser::new(body);
+    let body = pulldown_cmark::Parser::new_ext(body, Options::ENABLE_MATH);
     let headers = html::write_html(&mut content, body, cfg.syntax_conf)?;
 
     template.render_to(

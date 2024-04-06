@@ -25,6 +25,7 @@ use std::{
     io::{self, Write},
 };
 
+use asciimath_rs::format::mathml::ToMathML;
 use bstr::ByteSlice;
 use color_eyre::Result;
 
@@ -221,14 +222,18 @@ where
                     self.write(b"</code>")?;
                 }
                 InlineMath(text) => {
-                    self.write(br#"<span class="math math-inline">"#)?;
-                    escape_html(WriteWrapper(&mut self.writer), &text)?;
-                    self.write(b"</span>")?;
+                    let expr = asciimath_rs::parse(text);
+                    let mathml = expr.to_mathml();
+                    self.write(br#"<math display="inline">"#)?;
+                    self.write(mathml.as_bytes())?;
+                    self.write(b"</math>")?;
                 }
                 DisplayMath(text) => {
-                    self.write(br#"<span class="math math-display">"#)?;
-                    escape_html(WriteWrapper(&mut self.writer), &text)?;
-                    self.write(b"</span>")?;
+                    let expr = asciimath_rs::parse(text);
+                    let mathml = expr.to_mathml();
+                    self.write(br#"<math display="block">"#)?;
+                    self.write(mathml.as_bytes())?;
+                    self.write(b"</math>")?;
                 }
                 Html(html) | InlineHtml(html) => {
                     self.write(html.as_bytes())?;
