@@ -30,7 +30,7 @@ use color_eyre::Result;
 
 use itertools::Itertools;
 use pulldown_cmark::{
-    Alignment, CodeBlockKind, CowStr,
+    Alignment, BlockQuoteKind, CodeBlockKind, CowStr,
     Event::{self, *},
     HeadingLevel, LinkType, Tag, TagEnd,
 };
@@ -220,6 +220,16 @@ where
                     escape_html(WriteWrapper(&mut self.writer), &text)?;
                     self.write(b"</code>")?;
                 }
+                InlineMath(text) => {
+                    self.write(br#"<span class="math math-inline">"#)?;
+                    escape_html(WriteWrapper(&mut self.writer), &text)?;
+                    self.write(b"</span>")?;
+                }
+                DisplayMath(text) => {
+                    self.write(br#"<span class="math math-display">"#)?;
+                    escape_html(WriteWrapper(&mut self.writer), &text)?;
+                    self.write(b"</span>")?;
+                }
                 Html(html) | InlineHtml(html) => {
                     self.write(html.as_bytes())?;
                 }
@@ -345,11 +355,22 @@ where
                     _ => self.write(b">"),
                 }
             }
-            Tag::BlockQuote => {
+            Tag::BlockQuote(kind) => {
+                let class = match kind {
+                    None => "",
+                    Some(kind) => match kind {
+                        BlockQuoteKind::Note => r#" class="markdown-alert-note""#,
+                        BlockQuoteKind::Tip => r#" class="markdown-alert-tip""#,
+                        BlockQuoteKind::Important => r#" class="markdown-alert-important""#,
+                        BlockQuoteKind::Warning => r#" class="markdown-alert-warning""#,
+                        BlockQuoteKind::Caution => r#" class="markdown-alert-caution""#,
+                    },
+                };
+
                 if self.end_newline {
-                    self.write(b"<blockquote>\n")
+                    self.write(format!("<blockquote{class}>\n").as_bytes())
                 } else {
-                    self.write(b"\n<blockquote>\n")
+                    self.write(format!("\n<blockquote{class}>\n").as_bytes())
                 }
             }
             Tag::CodeBlock(info) => {
@@ -560,7 +581,7 @@ where
                     }
                     nest -= 1;
                 }
-                Html(_) => {},
+                Html(_) => {}
                 InlineHtml(text) | Code(text) | Text(text) => {
                     escape_html(WriteWrapper(&mut self.writer), &text)?;
                     self.end_newline = text.ends_with('\n');
@@ -572,6 +593,16 @@ where
                     let len = self.numbers.len() + 1;
                     let number = *self.numbers.entry(name).or_insert(len);
                     write!(&mut self.writer, "[{}]", number)?;
+                }
+                InlineMath(text) => {
+                    self.write(b"$")?;
+                    escape_html(WriteWrapper(&mut self.writer), &text)?;
+                    self.write(b"$")?;
+                }
+                DisplayMath(text) => {
+                    self.write(b"$$")?;
+                    escape_html(WriteWrapper(&mut self.writer), &text)?;
+                    self.write(b"$$")?;
                 }
                 TaskListMarker(true) => self.write(b"[x]")?,
                 TaskListMarker(false) => self.write(b"[ ]")?,

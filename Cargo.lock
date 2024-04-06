@@ -788,14 +788,13 @@ dependencies = [
 
 [[package]]
 name = "pulldown-cmark"
-version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f0530d13d87d1f549b66a3e8d0c688952abe5994e204ed62615baaf25dc029c"
+version = "0.10.0"
+source = "git+https://github.com/pulldown-cmark/pulldown-cmark?branch=branch_0.11#2540d4095d5f94fd972c93b927e9bec83b0c5079"
 dependencies = [
  "bitflags 2.5.0",
  "getopts",
  "memchr",
- "pulldown-cmark-escape",
+ "pulldown-cmark-escape 0.10.0 (git+https://github.com/pulldown-cmark/pulldown-cmark?branch=branch_0.11)",
  "unicase",
 ]
 
@@ -804,6 +803,11 @@ name = "pulldown-cmark-escape"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d5d8f9aa0e3cbcfaf8bf00300004ee3b72f74770f9cbac93f6928771f613276b"
+
+[[package]]
+name = "pulldown-cmark-escape"
+version = "0.10.0"
+source = "git+https://github.com/pulldown-cmark/pulldown-cmark?branch=branch_0.11#2540d4095d5f94fd972c93b927e9bec83b0c5079"
 
 [[package]]
 name = "quote"
@@ -1368,7 +1372,7 @@ dependencies = [
  "itertools 0.12.1",
  "liquid",
  "pulldown-cmark",
- "pulldown-cmark-escape",
+ "pulldown-cmark-escape 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde",
  "toml",
  "ts-highlight-html",

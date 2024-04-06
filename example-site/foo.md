@@ -31,6 +31,12 @@ Demonstrate a bit of Verin
 };
 ```
 
+Some inline $math(x)$
+
+$$
+(-b +- sqrt(b^2 - 4ac)) / (2a)
+$$
+
 ### Not on the TOC
 
 This is a section that is not present in the TOC as it is too nested
