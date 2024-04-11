@@ -27,6 +27,9 @@ enum Args {
         debug: bool,
         #[clap(long, default_value = "4111")]
         refresh_port: u16,
+        /// Generate a RSS feed
+        #[clap(short, long)]
+        rss: bool,
     },
     /// Start the refresh server used for debug mode
     ///
@@ -60,8 +63,8 @@ fn create_seven() -> u8 {
 }
 
 impl Metadata {
-    fn date(&self, config: &Config) -> Result<NaiveDate> {
-        Ok(NaiveDate::parse_from_str(&self.date, &config.date.input)?)
+    fn date(&self, config: &DateConfig) -> Result<NaiveDate> {
+        Ok(NaiveDate::parse_from_str(&self.date, &config.input)?)
     }
 }
 
@@ -69,9 +72,100 @@ mod html;
 mod refresh;
 
 #[derive(Deserialize, Debug)]
+struct ChannelData {
+    title: String,
+    link: String,
+    description: String,
+
+    #[serde(default)]
+    language: Option<String>,
+    #[serde(default)]
+    copyright: Option<String>,
+    #[serde(default)]
+    managing_editor: Option<String>,
+    #[serde(default)]
+    webmaster: Option<String>,
+    #[serde(default)]
+    pub_date: Option<String>,
+    #[serde(default)]
+    last_build_date: Option<String>,
+    #[serde(default)]
+    categories: Vec<rss::Category>,
+    #[serde(default)]
+    generator: Option<String>,
+    #[serde(default)]
+    docs: Option<String>,
+    #[serde(default)]
+    cloud: Option<rss::Cloud>,
+    #[serde(default)]
+    rating: Option<String>,
+    #[serde(default)]
+    ttl: Option<String>,
+    #[serde(default)]
+    image: Option<rss::Image>,
+    #[serde(default)]
+    text_input: Option<rss::TextInput>,
+    #[serde(default)]
+    skip_hours: Vec<String>,
+    #[serde(default)]
+    skip_days: Vec<String>,
+}
+
+impl From<ChannelData> for rss::Channel {
+    fn from(
+        ChannelData {
+            title,
+            link,
+            description,
+            language,
+            copyright,
+            managing_editor,
+            webmaster,
+            pub_date,
+            last_build_date,
+            categories,
+            generator,
+            docs,
+            cloud,
+            rating,
+            ttl,
+            image,
+            text_input,
+            skip_hours,
+            skip_days,
+        }: ChannelData,
+    ) -> Self {
+        rss::Channel {
+            title,
+            link,
+            description,
+            language,
+            copyright,
+            managing_editor,
+            webmaster,
+            pub_date,
+            last_build_date,
+            categories,
+            generator,
+            docs,
+            cloud,
+            rating,
+            ttl,
+            image,
+            text_input,
+            skip_hours,
+            skip_days,
+            ..rss::Channel::default()
+        }
+    }
+}
+
+#[derive(Deserialize, Debug)]
 struct Config {
     name: String,
     date: DateConfig,
+    #[serde(default)]
+    rss: Option<ChannelData>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -135,7 +229,7 @@ fn render_article(cfg: ArticleConfig, body: &str, refresh_port: u16) -> Result<(
         .get(&cfg.metadata.page)
         .ok_or_else(|| eyre::eyre!("Template `{}` does not exist", cfg.metadata.page))?;
 
-    let date = cfg.metadata.date(cfg.config)?;
+    let date = cfg.metadata.date(&cfg.config.date)?;
 
     let mut output = BufWriter::new(
         OpenOptions::new()
@@ -185,6 +279,7 @@ fn main() -> Result<()> {
             output,
             debug,
             refresh_port,
+            rss,
         } => {
             std::fs::create_dir_all(&output)?;
 
@@ -267,27 +362,27 @@ fn main() -> Result<()> {
                 .get("index")
                 .context("should provide an index.html")?;
             {
-                struct ArticleInfo {
+                struct ArticleInfo<'a> {
                     date: NaiveDate,
-                    name: String,
+                    name: &'a str,
                     page: String,
                     summary: String,
                 }
 
                 #[derive(Debug, Serialize)]
-                struct ArticleInfoStr {
+                struct ArticleInfoStr<'a> {
                     date: String,
-                    name: String,
+                    name: &'a str,
                     page: String,
                     summary: String,
                 }
 
                 let info: Result<Vec<_>, _> = articles
-                    .into_iter()
+                    .iter()
                     .map(|(metadata, file)| -> Result<_> {
                         Ok(ArticleInfo {
-                            date: metadata.date(&config)?,
-                            name: metadata.title,
+                            date: metadata.date(&config.date)?,
+                            name: &metadata.title,
                             page: file.file_name().unwrap().to_string_lossy().to_string(),
                             summary: metadata.summary.trim_end().replace('\n', "<br/>"),
                         })
@@ -323,6 +418,43 @@ fn main() -> Result<()> {
                         "articles": info_str,
                     }),
                 )?;
+            }
+
+            if rss {
+                let mut channel: rss::Channel = config
+                    .rss
+                    .context(
+                        "specifying --rss requires to have an `rss` section in the configuration",
+                    )?
+                    .into();
+
+                channel.set_items(
+                    articles
+                        .into_iter()
+                        .map(|(metadata, path)| rss::Item {
+                            pub_date: Some(
+                                chrono::NaiveDateTime::new(
+                                    metadata.date(&config.date).unwrap(),
+                                    Default::default(),
+                                )
+                                .and_utc()
+                                .to_rfc2822(),
+                            ),
+                            title: Some(metadata.title),
+                            link: Some(format!("{}/{}", channel.link, path.to_str().unwrap())),
+                            description: Some(metadata.summary),
+                            ..Default::default()
+                        })
+                        .collect::<Vec<_>>(),
+                );
+
+                let feed = OpenOptions::new()
+                    .create(true)
+                    .truncate(true)
+                    .write(true)
+                    .open(output.join("rss.xml"))?;
+
+                channel.pretty_write_to(feed, b' ', 4)?;
             }
         }
         Args::StartRefreshServer {

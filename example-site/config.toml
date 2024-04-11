@@ -3,3 +3,10 @@ name = "example verin site"
 [date]
 input = "%d/%m/%Y"
 output = "%d %B %Y"
+
+[rss]
+title = "Example Site"
+link = "file://output"
+description = """
+This is an example website demonstrating Verin functionalties
+"""
