@@ -35,7 +35,7 @@ use pulldown_cmark::{
     Event::{self, *},
     HeadingLevel, LinkType, Tag, TagEnd,
 };
-use pulldown_cmark_escape::{escape_href, escape_html, StrWrite, WriteWrapper};
+use pulldown_cmark_escape::{escape_href, escape_html, IoWriter, StrWrite};
 use serde::Serialize;
 use ts_highlight_html::{Renderer, SyntaxConfig};
 
@@ -141,6 +141,14 @@ struct HtmlWriter<'a, I, W> {
     headers: Vec<HeadingInfo>,
 }
 
+#[derive(thiserror::Error, Debug)]
+enum WriterError {
+    #[error("io error")]
+    Io(#[from] std::io::Error),
+    #[error("fmt error")]
+    Fmt(#[from] std::fmt::Error),
+}
+
 impl<'a, I, W> HtmlWriter<'a, I, W>
 where
     I: Iterator<Item = Event<'a>>,
@@ -172,9 +180,9 @@ where
 
     /// Writes a buffer, and tracks whether or not a newline was written.
     #[inline]
-    fn write(&mut self, s: &[u8]) -> io::Result<()> {
+    fn write(&mut self, s: &[u8]) -> Result<(), WriterError> {
         if let Some(header) = &mut self.current_header {
-            header.write_str(&*String::from_utf8_lossy(s))?
+            header.write_str(&String::from_utf8_lossy(s))?
         }
         self.writer.write_all(s)?;
 
@@ -199,7 +207,7 @@ where
                             if let Some(header) = &mut self.current_header {
                                 escape_html(header, &text)?;
                             }
-                            escape_html(WriteWrapper(&mut self.writer), &text)?;
+                            escape_html(IoWriter(&mut self.writer), &text)?;
                         }
                         Some(lang) => {
                             let rendered = self.syntax.render(lang, &text)?;
@@ -218,7 +226,7 @@ where
                     if let Some(header) = &mut self.current_header {
                         escape_html(header, &text)?;
                     }
-                    escape_html(WriteWrapper(&mut self.writer), &text)?;
+                    escape_html(IoWriter(&mut self.writer), &text)?;
                     self.write(b"</code>")?;
                 }
                 InlineMath(text) => {
@@ -257,7 +265,7 @@ where
                     if let Some(header) = &mut self.current_header {
                         escape_html(header, &name)?;
                     }
-                    escape_html(WriteWrapper(&mut self.writer), &name)?;
+                    escape_html(IoWriter(&mut self.writer), &name)?;
                     self.write(b"\">")?;
                     let number = *self.numbers.entry(name).or_insert(len);
                     write!(&mut self.writer, "{}", number)?;
@@ -275,7 +283,7 @@ where
     }
 
     /// Writes the start of an HTML tag.
-    fn start_tag(&mut self, tag: Tag<'a>) -> io::Result<()> {
+    fn start_tag(&mut self, tag: Tag<'a>) -> Result<(), WriterError> {
         match tag {
             Tag::HtmlBlock => Ok(()),
             Tag::Paragraph => {
@@ -306,22 +314,22 @@ where
                     if let Some(header) = &mut self.current_header {
                         escape_html(header, class)?;
                     }
-                    escape_html(WriteWrapper(&mut self.writer), class)?;
+                    escape_html(IoWriter(&mut self.writer), class)?;
                     for class in classes {
                         self.write(b" ")?;
                         if let Some(header) = &mut self.current_header {
                             escape_html(header, class)?;
                         }
-                        escape_html(WriteWrapper(&mut self.writer), class)?;
+                        escape_html(IoWriter(&mut self.writer), class)?;
                     }
                     self.write(b"\"")?;
                 }
                 for (attr, value) in attrs {
                     self.write(b" ")?;
-                    escape_html(WriteWrapper(&mut self.writer), &attr)?;
+                    escape_html(IoWriter(&mut self.writer), &attr)?;
                     if let Some(val) = value {
                         self.write(b"=\"")?;
-                        escape_html(WriteWrapper(&mut self.writer), &val)?;
+                        escape_html(IoWriter(&mut self.writer), &val)?;
                         self.write(b"\"")?;
                     } else {
                         self.write(b"=\"\"")?;
@@ -427,6 +435,27 @@ where
                     self.write(b"\n<li>")
                 }
             }
+            Tag::DefinitionList => {
+                if self.end_newline {
+                    self.write(b"<dl>\n")
+                } else {
+                    self.write(b"\n<dl>\n")
+                }
+            }
+            Tag::DefinitionListTitle => {
+                if self.end_newline {
+                    self.write(b"<dt>")
+                } else {
+                    self.write(b"\n<dt>")
+                }
+            }
+            Tag::DefinitionListDefinition => {
+                if self.end_newline {
+                    self.write(b"<dd>")
+                } else {
+                    self.write(b"\n<dd>")
+                }
+            }
             Tag::Emphasis => self.write(b"<em>"),
             Tag::Strong => self.write(b"<strong>"),
             Tag::Strikethrough => self.write(b"<del>"),
@@ -437,10 +466,10 @@ where
                 id: _,
             } => {
                 self.write(b"<a href=\"mailto:")?;
-                escape_href(WriteWrapper(&mut self.writer), &dest_url)?;
+                escape_href(IoWriter(&mut self.writer), &dest_url)?;
                 if !title.is_empty() {
                     self.write(b"\" title=\"")?;
-                    escape_html(WriteWrapper(&mut self.writer), &title)?;
+                    escape_html(IoWriter(&mut self.writer), &title)?;
                 }
                 self.write(b"\">")
             }
@@ -451,10 +480,10 @@ where
                 id: _,
             } => {
                 self.write(b"<a href=\"")?;
-                escape_href(WriteWrapper(&mut self.writer), &dest_url)?;
+                escape_href(IoWriter(&mut self.writer), &dest_url)?;
                 if !title.is_empty() {
                     self.write(b"\" title=\"")?;
-                    escape_html(WriteWrapper(&mut self.writer), &title)?;
+                    escape_html(IoWriter(&mut self.writer), &title)?;
                 }
                 self.write(b"\">")
             }
@@ -465,12 +494,12 @@ where
                 id: _,
             } => {
                 self.write(b"<img src=\"")?;
-                escape_href(WriteWrapper(&mut self.writer), &dest_url)?;
+                escape_href(IoWriter(&mut self.writer), &dest_url)?;
                 self.write(b"\" alt=\"")?;
                 self.raw_text()?;
                 if !title.is_empty() {
                     self.write(b"\" title=\"")?;
-                    escape_html(WriteWrapper(&mut self.writer), &title)?;
+                    escape_html(IoWriter(&mut self.writer), &title)?;
                 }
                 self.write(b"\" />")
             }
@@ -480,7 +509,7 @@ where
                 } else {
                     self.write(b"\n<div class=\"footnote-definition\" id=\"")?;
                 }
-                escape_html(WriteWrapper(&mut self.writer), &*name)?;
+                escape_html(IoWriter(&mut self.writer), &*name)?;
                 self.write(b"\"><sup class=\"footnote-definition-label\">")?;
                 let len = self.numbers.len() + 1;
                 let number = *self.numbers.entry(name).or_insert(len);
@@ -494,7 +523,7 @@ where
         }
     }
 
-    fn end_tag(&mut self, tag: TagEnd) -> io::Result<()> {
+    fn end_tag(&mut self, tag: TagEnd) -> Result<(), WriterError> {
         match tag {
             TagEnd::HtmlBlock => {}
             TagEnd::Paragraph => {
@@ -535,7 +564,7 @@ where
                 }
                 self.table_cell_index += 1;
             }
-            TagEnd::BlockQuote => {
+            TagEnd::BlockQuote(_) => {
                 self.write(b"</blockquote>\n")?;
             }
             TagEnd::CodeBlock => {
@@ -550,6 +579,15 @@ where
             }
             TagEnd::Item => {
                 self.write(b"</li>\n")?;
+            }
+            TagEnd::DefinitionList => {
+                self.write(b"</dl>\n")?;
+            }
+            TagEnd::DefinitionListTitle => {
+                self.write(b"</dt>\n")?;
+            }
+            TagEnd::DefinitionListDefinition => {
+                self.write(b"</dd>\n")?;
             }
             TagEnd::Emphasis => {
                 self.write(b"</em>")?;
@@ -575,7 +613,7 @@ where
     }
 
     // run raw text, consuming end tag
-    fn raw_text(&mut self) -> io::Result<()> {
+    fn raw_text(&mut self) -> Result<(), WriterError> {
         let mut nest = 0;
         while let Some(event) = self.iter.next() {
             match event {
@@ -588,7 +626,7 @@ where
                 }
                 Html(_) => {}
                 InlineHtml(text) | Code(text) | Text(text) => {
-                    escape_html(WriteWrapper(&mut self.writer), &text)?;
+                    escape_html(IoWriter(&mut self.writer), &text)?;
                     self.end_newline = text.ends_with('\n');
                 }
                 SoftBreak | HardBreak | Rule => {
@@ -601,12 +639,12 @@ where
                 }
                 InlineMath(text) => {
                     self.write(b"$")?;
-                    escape_html(WriteWrapper(&mut self.writer), &text)?;
+                    escape_html(IoWriter(&mut self.writer), &text)?;
                     self.write(b"$")?;
                 }
                 DisplayMath(text) => {
                     self.write(b"$$")?;
-                    escape_html(WriteWrapper(&mut self.writer), &text)?;
+                    escape_html(IoWriter(&mut self.writer), &text)?;
                     self.write(b"$$")?;
                 }
                 TaskListMarker(true) => self.write(b"[x]")?,
