@@ -542,14 +542,10 @@ impl<'a> Renderer<'a> {
         self.ts_render.reset();
 
         self.ts_render
-            .render(events, text.as_bytes(), &|hi| match self
-                .config
-                .theme
-                .0
-                .get(HIGHLIGHT_NAMES[hi.0])
-            {
-                Some(style) => style.as_bytes(),
-                None => "".as_bytes(),
+            .render(events, text.as_bytes(), &|hi, data| {
+                if let Some(style) = self.config.theme.0.get(HIGHLIGHT_NAMES[hi.0]) {
+                    data.extend_from_slice(style.as_bytes());
+                }
             })?;
 
         Ok(mem::take(&mut self.ts_render.html))

@@ -31,6 +31,13 @@ Demonstrate a bit of Verin
 };
 ```
 
+```rust
+fn main() -> () {
+    let this = "that";
+    Ok(())
+}
+```
+
 Some inline $math(x)$
 
 $$

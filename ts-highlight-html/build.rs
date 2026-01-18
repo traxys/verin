@@ -15,7 +15,7 @@ fn main() -> std::io::Result<()> {
         "linkerscript",
         "devicetree",
     ];
-    let nvim_treesitter_queries = concat!(env!("NVIM_TREESITTER"), "/queries");
+    let nvim_treesitter_queries = concat!(env!("NVIM_TREESITTER"), "/runtime/queries");
 
     let mut out_file = BufWriter::new(
         std::fs::OpenOptions::new()

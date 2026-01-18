@@ -285,6 +285,8 @@ where
     /// Writes the start of an HTML tag.
     fn start_tag(&mut self, tag: Tag<'a>) -> Result<(), WriterError> {
         match tag {
+            Tag::Subscript => self.write(b"<sub>"),
+            Tag::Superscript => self.write(b"<sup>"),
             Tag::HtmlBlock => Ok(()),
             Tag::Paragraph => {
                 if self.end_newline {
@@ -525,6 +527,12 @@ where
 
     fn end_tag(&mut self, tag: TagEnd) -> Result<(), WriterError> {
         match tag {
+            TagEnd::Subscript => {
+                self.write(b"</sub>")?;
+            }
+            TagEnd::Superscript => {
+                self.write(b"</sup>")?;
+            }
             TagEnd::HtmlBlock => {}
             TagEnd::Paragraph => {
                 self.write(b"</p>\n")?;
