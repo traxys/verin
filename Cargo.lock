@@ -1413,7 +1413,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-vvk"
 version = "0.1.0"
-source = "git+https://forgejo.familleboyer.net/traxys/tree-sitter-vvk.git#ea1539373d3a18527734f6b0387aadacce506910"
+source = "git+https://forgejo.familleboyer.net/traxys/tree-sitter-vvk.git#29710a61d71c9fd763c87aa94c5ee7d832c60e09"
 dependencies = [
  "cc",
  "tree-sitter-language",

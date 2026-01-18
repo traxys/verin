@@ -77,6 +77,49 @@ fn main() -> std::io::Result<()> {
     let mut alternate_module = HashMap::new();
     alternate_module.insert("toml", "toml_ng");
 
+    write!(
+        out_file,
+        r##"
+            configs.insert("vvk", {{
+                let mut cfg = HighlightConfiguration::new(
+                    tree_sitter_vvk::LANGUAGE.into(),
+                    "vvk",
+                    r#"
+                        (comment) @comment
+
+                        [
+                             "["
+                             "]"
+                             "{{"
+                             "}}"
+                        ] @punctuation.bracket
+
+                        [
+                            "mod"
+                        ] @keyword.import
+
+                        (directive) @keyword.modifier
+
+                        (string_literal) @string
+
+                        (target 
+                            name: (identifier) @function.call)
+
+                        (assign_statement
+                            name: (identifier) @variable)
+
+                        (argument
+                            name: (identifier) @variable.member)
+                    "#,
+                    "",
+                    "",
+                ).expect("Could not load language vvk");
+                cfg.configure(crate::HIGHLIGHT_NAMES);
+                cfg
+            }});
+        "##
+    )?;
+
     for language in languages {
         let injections = if Path::new(nvim_treesitter_queries)
             .join(format!("{language}/injections.scm"))
