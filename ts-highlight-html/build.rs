@@ -16,31 +16,27 @@ fn main() {
 
     let mut add_configs = quote! {
         configs.insert("javascript", {
-            let mut cfg = HighlightConfiguration::new(
+            LanguageConfig::new(
                 tree_sitter_javascript::LANGUAGE.into(),
                 "javascript",
                 include_str!(concat!(#nvim_treesitter_queries, "/ecma/highlights.scm")),
                 include_str!(concat!(#nvim_treesitter_queries, "/ecma/injections.scm")),
                 include_str!(concat!(#nvim_treesitter_queries, "/ecma/locals.scm")),
-            ).expect("Could not load language javascript");
-            cfg.configure(crate::HIGHLIGHT_NAMES);
-            cfg
+            )
         });
 
         configs.insert("asm", {
-            let mut cfg = HighlightConfiguration::new(
+            LanguageConfig::new(
                 tree_sitter_asm::LANGUAGE.into(),
                 "asm",
                 include_str!(concat!(#nvim_treesitter_queries, "/asm/highlights.scm")),
                 "",
                 include_str!(concat!(#nvim_treesitter_queries, "/asm/injections.scm")),
-            ).expect("Could not load language asm");
-            cfg.configure(crate::HIGHLIGHT_NAMES);
-            cfg
+            )
         });
 
         configs.insert("vvk", {
-            let mut cfg = HighlightConfiguration::new(
+            LanguageConfig::new(
                 tree_sitter_vvk::LANGUAGE.into(),
                 "vvk",
                 r#"
@@ -72,9 +68,7 @@ fn main() {
                 "#,
                 "",
                 "",
-            ).expect("Could not load language vvk");
-            cfg.configure(crate::HIGHLIGHT_NAMES);
-            cfg
+            )
         });
     };
 
@@ -104,26 +98,25 @@ fn main() {
         add_configs = quote! {
             #add_configs
 
-            configs.insert(#language, {{
-                let mut cfg = HighlightConfiguration::new(
+            configs.insert(#language, {
+                LanguageConfig::new(
                     #module::LANGUAGE.into(),
                     #language,
                     include_str!(concat!(#nvim_treesitter_queries, "/", #language, "/highlights.scm")),
                     #injections,
                     include_str!(concat!(#nvim_treesitter_queries, "/", #language, "/locals.scm")),
-                ).expect(concat!("Could not load language ", #language));
-                cfg.configure(crate::HIGHLIGHT_NAMES);
-                cfg
-            }});
+                )
+            });
         };
     }
 
     let output = quote! {
         use std::collections::HashMap;
         use once_cell::sync::Lazy;
-        use tree_sitter_highlight::HighlightConfiguration;
 
-        pub static HI_CFGS: Lazy<HashMap<&'static str, HighlightConfiguration>> = Lazy::new(|| {
+        use crate::LanguageConfig;
+
+        pub static HI_CFGS: Lazy<HashMap<&'static str, LanguageConfig>> = Lazy::new(|| {
             let mut configs = HashMap::new();
 
             #add_configs

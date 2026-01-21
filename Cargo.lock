@@ -1449,6 +1449,7 @@ dependencies = [
  "quote",
  "syn",
  "thiserror",
+ "tree-sitter",
  "tree-sitter-asm",
  "tree-sitter-devicetree",
  "tree-sitter-highlight",

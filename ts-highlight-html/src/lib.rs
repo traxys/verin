@@ -2,6 +2,43 @@ use std::{collections::HashMap, io, mem};
 
 use tree_sitter_highlight::{HighlightConfiguration, Highlighter, HtmlRenderer};
 
+struct LanguageConfig {
+    language: tree_sitter::Language,
+    name: String,
+    highlights_query: String,
+    injections_query: String,
+    locals_query: String,
+}
+
+impl LanguageConfig {
+    pub fn new(
+        language: tree_sitter::Language,
+        name: &str,
+        highlights_query: &str,
+        injections_query: &str,
+        locals_query: &str,
+    ) -> Self {
+        Self {
+            language,
+            name: name.into(),
+            highlights_query: highlights_query.into(),
+            injections_query: injections_query.into(),
+            locals_query: locals_query.into(),
+        }
+    }
+
+    fn to_highlighter(&self) -> HighlightConfiguration {
+        HighlightConfiguration::new(
+            self.language.clone(),
+            &self.name,
+            &self.highlights_query,
+            &self.injections_query,
+            &self.locals_query,
+        )
+        .unwrap_or_else(|e| panic!("Could not init {}: {}", self.name, e))
+    }
+}
+
 pub const HIGHLIGHT_NAMES: &[&str] = &[
     "annotation",
     "attribute",
@@ -500,14 +537,17 @@ mod hi_cfg {
 }
 
 pub struct SyntaxConfig<'t> {
-    configs: &'static HashMap<&'static str, HighlightConfiguration>,
+    configs: HashMap<&'static str, HighlightConfiguration>,
     theme: &'t Theme,
 }
 
 impl<'t> SyntaxConfig<'t> {
     pub fn new(theme: &'t Theme) -> Self {
         Self {
-            configs: &*hi_cfg::HI_CFGS,
+            configs: hi_cfg::HI_CFGS
+                .iter()
+                .map(|(&k, v)| (k, v.to_highlighter()))
+                .collect(),
             theme,
         }
     }
