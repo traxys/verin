@@ -722,6 +722,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 
 [[package]]
+name = "lua-patterns"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f3da90ef01f4466adefe593c05d534fe270d04a2b067608cf8b230123e5a281"
+
+[[package]]
 name = "maplit"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1346,9 +1352,9 @@ dependencies = [
 [[package]]
 name = "tree-sitter-highlight"
 version = "0.26.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb0636662a03005d9289649e0b4a89ff37b75df5033e8d4a16398740ae6496d2"
+source = "git+https://forgejo.familleboyer.net/traxys/tree-sitter?branch=ts-captures#e5ee144b0ad58e412476ee48c99d21903c169b17"
 dependencies = [
+ "lua-patterns",
  "regex",
  "streaming-iterator",
  "thiserror",
