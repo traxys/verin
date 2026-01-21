@@ -1,11 +1,8 @@
-use std::{
-    collections::HashMap,
-    env,
-    io::{BufWriter, Write},
-    path::Path,
-};
+use std::{collections::HashMap, env, path::Path};
 
-fn main() -> std::io::Result<()> {
+use quote::{format_ident, quote};
+
+fn main() {
     let languages = &[
         "json",
         "rust",
@@ -17,140 +14,130 @@ fn main() -> std::io::Result<()> {
     ];
     let nvim_treesitter_queries = concat!(env!("NVIM_TREESITTER"), "/runtime/queries");
 
-    let mut out_file = BufWriter::new(
-        std::fs::OpenOptions::new()
-            .create(true)
-            .truncate(true)
-            .write(true)
-            .open(
-                Path::new(&env::var("OUT_DIR").expect("could not read out-dir"))
-                    .join("ts_config.rs"),
-            )?,
-    );
+    let mut add_configs = quote! {
+        configs.insert("javascript", {
+            let mut cfg = HighlightConfiguration::new(
+                tree_sitter_javascript::LANGUAGE.into(),
+                "javascript",
+                include_str!(concat!(#nvim_treesitter_queries, "/ecma/highlights.scm")),
+                include_str!(concat!(#nvim_treesitter_queries, "/ecma/injections.scm")),
+                include_str!(concat!(#nvim_treesitter_queries, "/ecma/locals.scm")),
+            ).expect("Could not load language javascript");
+            cfg.configure(crate::HIGHLIGHT_NAMES);
+            cfg
+        });
 
-    write!(
-        out_file,
-        r#"
-        use std::collections::HashMap;
-        use once_cell::sync::Lazy;
-        use tree_sitter_highlight::HighlightConfiguration;
+        configs.insert("asm", {
+            let mut cfg = HighlightConfiguration::new(
+                tree_sitter_asm::LANGUAGE.into(),
+                "asm",
+                include_str!(concat!(#nvim_treesitter_queries, "/asm/highlights.scm")),
+                "",
+                include_str!(concat!(#nvim_treesitter_queries, "/asm/injections.scm")),
+            ).expect("Could not load language asm");
+            cfg.configure(crate::HIGHLIGHT_NAMES);
+            cfg
+        });
 
-        pub static HI_CFGS: Lazy<HashMap<&'static str, HighlightConfiguration>> = Lazy::new(|| {{
-            let mut configs = HashMap::new();
-    "#
-    )?;
+        configs.insert("vvk", {
+            let mut cfg = HighlightConfiguration::new(
+                tree_sitter_vvk::LANGUAGE.into(),
+                "vvk",
+                r#"
+                    (comment) @comment
 
-    write!(
-        out_file,
-        r#"
-            configs.insert("javascript", {{
-                let mut cfg = HighlightConfiguration::new(
-                    tree_sitter_javascript::LANGUAGE.into(),
-                    "javascript",
-                    include_str!("{nvim_treesitter_queries}/ecma/highlights.scm"),
-                    include_str!("{nvim_treesitter_queries}/ecma/injections.scm"),
-                    include_str!("{nvim_treesitter_queries}/ecma/locals.scm"),
-                ).expect("Could not load language javascript");
-                cfg.configure(crate::HIGHLIGHT_NAMES);
-                cfg
-            }});
-        "#
-    )?;
+                    [
+                         "["
+                         "]"
+                         "{"
+                         "}"
+                    ] @punctuation.bracket
 
-    write!(
-        out_file,
-        r#"
-            configs.insert("asm", {{
-                let mut cfg = HighlightConfiguration::new(
-                    tree_sitter_asm::LANGUAGE.into(),
-                    "asm",
-                    include_str!("{nvim_treesitter_queries}/asm/highlights.scm"),
-                    "",
-                    include_str!("{nvim_treesitter_queries}/asm/injections.scm"),
-                ).expect("Could not load language asm");
-                cfg.configure(crate::HIGHLIGHT_NAMES);
-                cfg
-            }});
-        "#
-    )?;
+                    [
+                        "mod"
+                    ] @keyword.import
+
+                    (directive) @keyword.modifier
+
+                    (string_literal) @string
+
+                    (target
+                        name: (identifier) @function.call)
+
+                    (assign_statement
+                        name: (identifier) @variable)
+
+                    (argument
+                        name: (identifier) @variable.member)
+                "#,
+                "",
+                "",
+            ).expect("Could not load language vvk");
+            cfg.configure(crate::HIGHLIGHT_NAMES);
+            cfg
+        });
+    };
 
     let mut alternate_module = HashMap::new();
     alternate_module.insert("toml", "toml_ng");
-
-    write!(
-        out_file,
-        r##"
-            configs.insert("vvk", {{
-                let mut cfg = HighlightConfiguration::new(
-                    tree_sitter_vvk::LANGUAGE.into(),
-                    "vvk",
-                    r#"
-                        (comment) @comment
-
-                        [
-                             "["
-                             "]"
-                             "{{"
-                             "}}"
-                        ] @punctuation.bracket
-
-                        [
-                            "mod"
-                        ] @keyword.import
-
-                        (directive) @keyword.modifier
-
-                        (string_literal) @string
-
-                        (target 
-                            name: (identifier) @function.call)
-
-                        (assign_statement
-                            name: (identifier) @variable)
-
-                        (argument
-                            name: (identifier) @variable.member)
-                    "#,
-                    "",
-                    "",
-                ).expect("Could not load language vvk");
-                cfg.configure(crate::HIGHLIGHT_NAMES);
-                cfg
-            }});
-        "##
-    )?;
 
     for language in languages {
         let injections = if Path::new(nvim_treesitter_queries)
             .join(format!("{language}/injections.scm"))
             .exists()
         {
-            format!(r#"include_str!("{nvim_treesitter_queries}/{language}/injections.scm")"#)
+            let path = format!("{nvim_treesitter_queries}/{language}/injections.scm");
+            quote! {
+                include_str!(#path)
+            }
         } else {
-            r#""""#.to_owned()
+            quote! {
+                ""
+            }
         };
 
-        let module = alternate_module.get(language).unwrap_or(language);
+        let module = format_ident!(
+            "tree_sitter_{}",
+            alternate_module.get(language).unwrap_or(language)
+        );
 
-        write!(
-            out_file,
-            r#"
-            configs.insert("{language}", {{
+        add_configs = quote! {
+            #add_configs
+
+            configs.insert(#language, {{
                 let mut cfg = HighlightConfiguration::new(
-                    tree_sitter_{module}::LANGUAGE.into(),
-                    "{language}",
-                    include_str!("{nvim_treesitter_queries}/{language}/highlights.scm"),
-                    {injections},
-                    include_str!("{nvim_treesitter_queries}/{language}/locals.scm"),
-                ).expect("Could not load language {language}");
+                    #module::LANGUAGE.into(),
+                    #language,
+                    include_str!(concat!(#nvim_treesitter_queries, "/", #language, "/highlights.scm")),
+                    #injections,
+                    include_str!(concat!(#nvim_treesitter_queries, "/", #language, "/locals.scm")),
+                ).expect(concat!("Could not load language ", #language));
                 cfg.configure(crate::HIGHLIGHT_NAMES);
                 cfg
             }});
-        "#
-        )?;
+        };
     }
 
-    writeln!(out_file, "configs }});")?;
+    let output = quote! {
+        use std::collections::HashMap;
+        use once_cell::sync::Lazy;
+        use tree_sitter_highlight::HighlightConfiguration;
 
-    Ok(())
+        pub static HI_CFGS: Lazy<HashMap<&'static str, HighlightConfiguration>> = Lazy::new(|| {
+            let mut configs = HashMap::new();
+
+            #add_configs
+
+            configs
+        });
+    };
+
+    let syntax_tree = syn::parse2(output).unwrap();
+    let formatted = prettyplease::unparse(&syntax_tree);
+
+    std::fs::write(
+        Path::new(&env::var("OUT_DIR").expect("could not read out-dir")).join("ts_config.rs"),
+        formatted,
+    )
+    .unwrap();
 }

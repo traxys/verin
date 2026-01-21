@@ -21,3 +21,8 @@ tree-sitter-asm = "0.24"
 tree-sitter-devicetree = "0.15"
 tree-sitter-vvk = { git = "https://forgejo.familleboyer.net/traxys/tree-sitter-vvk.git" }
 paste = "1.0.15"
+
+[build-dependencies]
+prettyplease = "0.2.37"
+quote = "1.0.43"
+syn = "2.0.114"
