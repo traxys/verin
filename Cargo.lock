@@ -1352,7 +1352,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-highlight"
 version = "0.26.3"
-source = "git+https://forgejo.familleboyer.net/traxys/tree-sitter?branch=ts-captures#e5ee144b0ad58e412476ee48c99d21903c169b17"
+source = "git+https://forgejo.familleboyer.net/traxys/tree-sitter?branch=ts-captures#705130705ac88e848a9cf2c11593f494d9c61faa"
 dependencies = [
  "lua-patterns",
  "regex",
