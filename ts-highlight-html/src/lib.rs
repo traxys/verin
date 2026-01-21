@@ -168,7 +168,11 @@ impl<'t> SyntaxConfig<'t> {
         Self {
             configs: hi_cfg::HI_CFGS
                 .iter()
-                .map(|(&k, v)| (k, v.to_highlighter()))
+                .map(|(&k, v)| {
+                    let mut hl = v.to_highlighter();
+                    hl.configure(HIGHLIGHT_NAMES);
+                    (k, hl)
+                })
                 .collect(),
             theme,
         }
