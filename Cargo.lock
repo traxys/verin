@@ -1352,9 +1352,8 @@ dependencies = [
 [[package]]
 name = "tree-sitter-highlight"
 version = "0.26.3"
-source = "git+https://forgejo.familleboyer.net/traxys/tree-sitter?branch=ts-captures#705130705ac88e848a9cf2c11593f494d9c61faa"
+source = "git+https://forgejo.familleboyer.net/traxys/tree-sitter?branch=ts-captures#c2e50ccd112ab0ebf40a1a55ab972d964087dcf8"
 dependencies = [
- "lua-patterns",
  "regex",
  "streaming-iterator",
  "thiserror",
@@ -1449,6 +1448,8 @@ dependencies = [
 name = "ts-highlight-html"
 version = "0.1.0"
 dependencies = [
+ "lua-patterns",
+ "memchr",
  "once_cell",
  "paste",
  "prettyplease",

@@ -1,5 +1,7 @@
 use std::{collections::HashMap, io, mem};
 
+use lua_patterns::LuaPattern;
+use tree_sitter::{Query, QueryMatch, QueryPredicateArg, TextProvider};
 use tree_sitter_highlight::{HighlightConfiguration, Highlighter, HtmlRenderer};
 
 pub mod theme;
@@ -185,6 +187,95 @@ pub struct Renderer<'a> {
     ts_render: HtmlRenderer,
 }
 
+fn nvim_filtering(result: &QueryMatch, query: &Query, mut source: &[u8]) -> bool {
+    struct NodeText<'a, T> {
+        buffer: &'a mut Vec<u8>,
+        first_chunk: Option<T>,
+    }
+    impl<'a, T: AsRef<[u8]>> NodeText<'a, T> {
+        const fn new(buffer: &'a mut Vec<u8>) -> Self {
+            Self {
+                buffer,
+                first_chunk: None,
+            }
+        }
+
+        fn get_text(&mut self, chunks: &mut impl Iterator<Item = T>) -> &[u8] {
+            self.first_chunk = chunks.next();
+            if let Some(next_chunk) = chunks.next() {
+                self.buffer.clear();
+                self.buffer
+                    .extend_from_slice(self.first_chunk.as_ref().unwrap().as_ref());
+                self.buffer.extend_from_slice(next_chunk.as_ref());
+                for chunk in chunks {
+                    self.buffer.extend_from_slice(chunk.as_ref());
+                }
+                self.buffer.as_slice()
+            } else if let Some(ref first_chunk) = self.first_chunk {
+                first_chunk.as_ref()
+            } else {
+                &[]
+            }
+        }
+    }
+
+    // Check that we don’t have any is/is-not (Not handled)
+    let props = query.property_predicates(result.pattern_index);
+    assert_eq!(props, [], "Unhandled is/is-not?");
+
+    let mut buffer = Vec::new();
+    let mut node_text = NodeText::new(&mut buffer);
+
+    for predicate in query.general_predicates(result.pattern_index) {
+        if !predicate.operator.ends_with('?') {
+            continue;
+        }
+
+        match &*predicate.operator {
+            "lua-match?" => {
+                let [QueryPredicateArg::Capture(capture), QueryPredicateArg::String(pattern)] =
+                    &*predicate.args
+                else {
+                    panic!("Unexpected arguments: {:?}", predicate.args);
+                };
+
+                let mut matcher = LuaPattern::new(pattern);
+                for node in result.nodes_for_capture_index(*capture) {
+                    let mut text = source.text(node);
+                    let text = node_text.get_text(&mut text);
+                    if !matcher.matches_bytes(text) {
+                        result.remove();
+                        return false;
+                    }
+                }
+            }
+            "contains?" => {
+                let &QueryPredicateArg::Capture(capture) = &predicate.args[0] else {
+                    panic!("Unexpected arguments: {:?}", predicate.args);
+                };
+
+                for node in result.nodes_for_capture_index(capture) {
+                    let mut text = source.text(node);
+                    let text = node_text.get_text(&mut text);
+
+                    for part in &predicate.args[1..] {
+                        let QueryPredicateArg::String(part) = part else {
+                            panic!("Unexpected arguments: {:?}", predicate.args);
+                        };
+
+                        if memchr::memmem::find(text, part.as_bytes()).is_none() {
+                            return false;
+                        }
+                    }
+                }
+            }
+            _ => panic!("Unhandled operator: {}", predicate.operator),
+        }
+    }
+
+    true
+}
+
 impl<'a> Renderer<'a> {
     pub fn new(config: &'a SyntaxConfig<'a>) -> Self {
         Self {
@@ -200,9 +291,10 @@ impl<'a> Renderer<'a> {
                 println!("[WARNING] `{language}` was not recognized, skipping highlight");
                 return Ok(text.as_bytes().into());
             }
-            Some(cfg) => self
-                .highlighter
-                .highlight(cfg, text.as_bytes(), None, |_| None)?,
+            Some(cfg) => {
+                self.highlighter
+                    .highlight(cfg, text.as_bytes(), None, |_| None, &nvim_filtering)?
+            }
         };
 
         self.ts_render.reset();
